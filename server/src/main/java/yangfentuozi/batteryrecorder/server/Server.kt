@@ -8,7 +8,6 @@ import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import android.system.ErrnoException
 import android.system.Os
-import android.system.OsConstants
 import android.util.Log
 import yangfentuozi.batteryrecorder.server.recorder.IRecordListener
 import yangfentuozi.batteryrecorder.server.recorder.Monitor
@@ -87,39 +86,19 @@ class Server internal constructor() : IService.Stub() {
         try {
             val forceActive = "/proc/oplus-votable/GAUGE_UPDATE/force_active"
             val forceVal = "/proc/oplus-votable/GAUGE_UPDATE/force_val"
-            if (Os.access(forceActive, OsConstants.F_OK)) {
-                LoggerX.i<Server>("unlockOPlusSampleTimeLimit: 欧加功率采样频率解限文件存在")
-                Os.chmod(forceActive, "666".toInt(8))
-                Os.chmod(forceVal, "666".toInt(8))
-                val forceActiveFile = File(forceActive)
-                val forceValFile = File(forceVal)
-                forceValFile.readText().trim().toLong().let {
-                    if (it > intervalMs || it == 0L) {
-                        LoggerX.i<Server>("unlockOPlusSampleTimeLimit: 解锁欧加功率采样频率: ${intervalMs}Ms")
-                        writeProcText(forceActiveFile.absolutePath, "1\n")
-                        writeProcText(forceValFile.absolutePath, "$intervalMs\n")
-                    }
+            val currentValue = File(forceVal).readText().trim().toLong()
+            if (currentValue > intervalMs || currentValue == 0L) {
+                LoggerX.i<Server>("unlockOPlusSampleTimeLimit: 解锁欧加功率采样频率: ${intervalMs}Ms\ncurrent: $currentValue Ms")
+                val command =
+                    "chmod 666 $forceVal;echo '$intervalMs' > $forceVal;chmod 666 $forceActive;echo '1' > $forceActive"
+                val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
+                val exitCode = process.waitFor()
+                if (exitCode != 0) {
+                    throw IOException("unlockOPlusSampleTimeLimit: shell 命令执行失败, exitCode=$exitCode")
                 }
             }
         } catch (e: Exception) {
             LoggerX.w<Server>("解锁欧加功率采样频率限制时失败", tr = e)
-        }
-    }
-
-    /**
-     * 直接通过 fd 向 proc 节点写入文本，避免 `File.writeText()` 在目标节点上的额外行为。
-     *
-     * @param path proc 节点绝对路径
-     * @param content 写入内容，调用方负责决定是否包含换行
-     * @return 无返回值；写入失败时直接抛出异常，由上层统一记录日志
-     */
-    private fun writeProcText(path: String, content: String) {
-        val fd = Os.open(path, OsConstants.O_WRONLY, 0)
-        try {
-            val bytes = content.toByteArray(Charsets.UTF_8)
-            Os.write(fd, bytes, 0, bytes.size)
-        } finally {
-            Os.close(fd)
         }
     }
 
