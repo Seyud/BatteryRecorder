@@ -1586,7 +1586,11 @@ private fun prepareChartState(request: ChartPreparationRequest): ChartPreparatio
             },
             screenStatePaths = buildScreenStatePaths(renderRawPoints, coords, request.density),
             capacityMarkerLayouts = buildCapacityMarkerLayouts(capacityMarkers, coords, request.density),
-            tempMarkerLayouts = buildTempMarkerLayouts(tempMarkerPoints, coords, request.density),
+            tempMarkerLayouts = if (request.curveVisibility.showTemp) {
+                buildTempMarkerLayouts(tempMarkerPoints, coords, request.density)
+            } else {
+                emptyList()
+            },
             peakAnnotationLayout = peakDisplay?.let { peak ->
                 buildPeakAnnotationLayout(
                     peakDisplay = peak,
