@@ -32,10 +32,7 @@ object RecordFileParser {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
-                        timestampValue = parts.firstOrNull(),
-                        previousTimestamp = previousParsedTimestamp,
-                        reason = "字段数量不足: ${parts.size}",
-                        rawLine = line
+                        reason = "字段数量不足: ${parts.size}"
                     )
                     return@forEach
                 }
@@ -45,10 +42,7 @@ object RecordFileParser {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
-                        timestampValue = timestampValue,
-                        previousTimestamp = previousParsedTimestamp,
-                        reason = "时间戳长度异常: ${timestampValue.length}",
-                        rawLine = line
+                        reason = "时间戳长度异常"
                     )
                     return@forEach
                 }
@@ -58,10 +52,7 @@ object RecordFileParser {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
-                        timestampValue = timestampValue,
-                        previousTimestamp = previousParsedTimestamp,
-                        reason = "字段解析失败",
-                        rawLine = line
+                        reason = "字段解析失败"
                     )
                     return@forEach
                 }
@@ -72,10 +63,7 @@ object RecordFileParser {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
-                        timestampValue = timestampValue,
-                        previousTimestamp = previousTimestamp,
-                        reason = "时间戳未严格递增",
-                        rawLine = line
+                        reason = "时间戳未严格递增"
                     )
                     return@forEach
                 }
@@ -88,19 +76,13 @@ object RecordFileParser {
     private fun logInvalidLine(
         file: File,
         lineNumber: Int,
-        timestampValue: String?,
-        previousTimestamp: Long?,
-        reason: String,
-        rawLine: String
+        reason: String
     ) {
         LoggerX.w<RecordFileParser>(
             "跳过损坏记录 " +
                 "file=${file.absolutePath} " +
                 "line=$lineNumber " +
-                "timestamp=${timestampValue ?: "null"} " +
-                "prevAcceptedTimestamp=${previousTimestamp ?: "null"} " +
-                "reason=$reason " +
-                "raw=$rawLine"
+                "reason=$reason"
         )
     }
 }

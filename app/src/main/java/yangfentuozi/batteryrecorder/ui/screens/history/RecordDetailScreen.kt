@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Outbox
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -93,6 +95,7 @@ fun RecordDetailScreen(
     val record by viewModel.recordDetail.collectAsState()
     val chartUiState by viewModel.recordChartUiState.collectAsState()
     val recordAppDetailEntries by viewModel.recordAppDetailEntries.collectAsState()
+    val isRecordChartLoading by viewModel.isRecordChartLoading.collectAsState()
     val userMessage by viewModel.userMessage.collectAsState()
     val dualCellEnabled by settingsViewModel.dualCellEnabled.collectAsState()
     val dischargeDisplayPositive by settingsViewModel.dischargeDisplayPositive.collectAsState()
@@ -213,33 +216,20 @@ fun RecordDetailScreen(
         }
     ) { paddingValues ->
         val detail = record
-        if (detail == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 0.dp)
-            ) {
-                Text(
-                    text = "暂无数据",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            return@Scaffold
+        val isTargetRecordLoaded = detail?.asRecordsFile() == recordsFile
+        val detailState = detail?.takeIf { isTargetRecordLoaded }
+        val stats = detailState?.stats
+        val durationMs = stats?.let { it.endTime - it.startTime }
+        val capacityChange = when (detailState?.type) {
+            BatteryStatus.Charging -> stats?.let { it.endCapacity - it.startCapacity }
+            BatteryStatus.Discharging -> stats?.let { it.startCapacity - it.endCapacity }
+            else -> null
         }
-
-        val stats = detail.stats
-        val durationMs = stats.endTime - stats.startTime
-        val capacityChange = if (detail.type == BatteryStatus.Charging) {
-            stats.endCapacity - stats.startCapacity
-        } else {
-            stats.startCapacity - stats.endCapacity
-        }
-        val typeLabel = if (detail.type == BatteryStatus.Charging) "充电记录" else "放电记录"
+        val detailType = detailState?.type ?: recordsFile.type
+        val typeLabel = if (detailType == BatteryStatus.Charging) "充电记录" else "放电记录"
 
         val fixedPowerMode =
-            if (detail.type == BatteryStatus.Discharging && !dischargeDisplayPositive) {
+            if (detailType == BatteryStatus.Discharging && !dischargeDisplayPositive) {
                 FixedPowerAxisMode.NegativeOnly
             } else {
                 FixedPowerAxisMode.PositiveOnly
@@ -277,60 +267,68 @@ fun RecordDetailScreen(
 
         // chartBlock 统一封装普通模式 / 全屏模式下的同一张图表，避免两套 UI 结构分叉。
         val chartBlock: @Composable (Modifier, Boolean) -> Unit = { modifier, isFullscreenMode ->
-            PowerCapacityChart(
-                points = chartUiState.points,
-                trendPoints = chartUiState.trendPoints,
-                recordScreenOffEnabled = recordScreenOffEnabled,
-                recordStartTime = stats.startTime,
-                modifier = modifier,
-                fixedPowerAxisMode = fixedPowerMode,
-                curveVisibility = curveVisibility,
-                chartHeight = if (isFullscreenMode) 320.dp else 240.dp,
-                isFullscreen = isFullscreenMode,
-                onToggleFullscreen = {
-                    if (isChartFullscreen) {
-                        isChartFullscreen = false
-                        fullscreenViewportStartMs = null
+            val currentChartHeight = if (isFullscreenMode) 320.dp else 240.dp
+            if (!isTargetRecordLoaded || isRecordChartLoading) {
+                RecordDetailChartLoading(
+                    modifier = modifier,
+                    chartHeight = currentChartHeight
+                )
+            } else {
+                PowerCapacityChart(
+                    points = chartUiState.points,
+                    trendPoints = chartUiState.trendPoints,
+                    recordScreenOffEnabled = recordScreenOffEnabled,
+                    recordStartTime = stats!!.startTime,
+                    modifier = modifier,
+                    fixedPowerAxisMode = fixedPowerMode,
+                    curveVisibility = curveVisibility,
+                    chartHeight = currentChartHeight,
+                    isFullscreen = isFullscreenMode,
+                    onToggleFullscreen = {
+                        if (isChartFullscreen) {
+                            isChartFullscreen = false
+                            fullscreenViewportStartMs = null
+                        } else {
+                            isChartFullscreen = true
+                            fullscreenViewportStartMs = chartUiState.minChartTime
+                        }
+                    },
+                    onTogglePowerVisibility = {
+                        val nextValue = powerCurveMode.next()
+                        chartPrefs.edit { putString(KEY_POWER_CURVE_MODE, nextValue.name) }
+                        powerCurveMode = nextValue
+                    },
+                    onToggleCapacityVisibility = {
+                        val nextValue = !showCapacity
+                        chartPrefs.edit { putBoolean(KEY_SHOW_CAPACITY_CURVE, nextValue) }
+                        showCapacity = nextValue
+                    },
+                    onToggleTempVisibility = {
+                        val nextValue = !showTemp
+                        chartPrefs.edit { putBoolean(KEY_SHOW_TEMP_CURVE, nextValue) }
+                        showTemp = nextValue
+                    },
+                    showAppIcons = showAppIcons,
+                    onToggleAppIconsVisibility = {
+                        val nextValue = !showAppIcons
+                        chartPrefs.edit { putBoolean(KEY_SHOW_APP_ICONS, nextValue) }
+                        showAppIcons = nextValue
+                    },
+                    useFivePercentTimeGrid = isFullscreenMode,
+                    visibleStartTime = viewportStartForChart,
+                    visibleEndTime = viewportEndForChart,
+                    onViewportShift = if (isFullscreenMode && chartUiState.minChartTime != null && chartUiState.maxViewportStartTime != null) { deltaMs ->
+                        val minChartTime = chartUiState.minChartTime!!
+                        val maxViewportStart = chartUiState.maxViewportStartTime!!
+                        val currentStart = (fullscreenViewportStartMs ?: minChartTime)
+                            .coerceIn(minChartTime, maxViewportStart)
+                        fullscreenViewportStartMs =
+                            (currentStart + deltaMs).coerceIn(minChartTime, maxViewportStart)
                     } else {
-                        isChartFullscreen = true
-                        fullscreenViewportStartMs = chartUiState.minChartTime
+                        null
                     }
-                },
-                onTogglePowerVisibility = {
-                    val nextValue = powerCurveMode.next()
-                    chartPrefs.edit { putString(KEY_POWER_CURVE_MODE, nextValue.name) }
-                    powerCurveMode = nextValue
-                },
-                onToggleCapacityVisibility = {
-                    val nextValue = !showCapacity
-                    chartPrefs.edit { putBoolean(KEY_SHOW_CAPACITY_CURVE, nextValue) }
-                    showCapacity = nextValue
-                },
-                onToggleTempVisibility = {
-                    val nextValue = !showTemp
-                    chartPrefs.edit { putBoolean(KEY_SHOW_TEMP_CURVE, nextValue) }
-                    showTemp = nextValue
-                },
-                showAppIcons = showAppIcons,
-                onToggleAppIconsVisibility = {
-                    val nextValue = !showAppIcons
-                    chartPrefs.edit { putBoolean(KEY_SHOW_APP_ICONS, nextValue) }
-                    showAppIcons = nextValue
-                },
-                useFivePercentTimeGrid = isFullscreenMode,
-                visibleStartTime = viewportStartForChart,
-                visibleEndTime = viewportEndForChart,
-                onViewportShift = if (isFullscreenMode && chartUiState.minChartTime != null && chartUiState.maxViewportStartTime != null) { deltaMs ->
-                    val minChartTime = chartUiState.minChartTime!!
-                    val maxViewportStart = chartUiState.maxViewportStartTime!!
-                    val currentStart = (fullscreenViewportStartMs ?: minChartTime)
-                        .coerceIn(minChartTime, maxViewportStart)
-                    fullscreenViewportStartMs =
-                        (currentStart + deltaMs).coerceIn(minChartTime, maxViewportStart)
-                } else {
-                    null
-                }
-            )
+                )
+            }
         }
 
         if (isChartFullscreen) {
@@ -360,29 +358,31 @@ fun RecordDetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SplicedColumnGroup(title = typeLabel) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        InfoRow(
-                            "时间",
-                            "${formatDateTime(stats.startTime)} 到 ${formatDateTime(stats.endTime)} (${
-                                formatDurationHours(durationMs)
-                            })"
-                        )
-                        InfoRow(
-                            "平均功率",
-                            formatPower(stats.averagePower, dualCellEnabled, calibrationValue)
-                        )
-                        if (detail.type == BatteryStatus.Charging) {
-                            InfoRow("电量变化", "${capacityChange}%")
+            if (detailState != null && stats != null && durationMs != null) {
+                SplicedColumnGroup(title = typeLabel) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            InfoRow(
+                                "时间",
+                                "${formatDateTime(stats.startTime)} 到 ${formatDateTime(stats.endTime)} (${
+                                    formatDurationHours(durationMs)
+                                })"
+                            )
+                            InfoRow(
+                                "平均功率",
+                                formatPower(stats.averagePower, dualCellEnabled, calibrationValue)
+                            )
+                            if (detailState.type == BatteryStatus.Charging && capacityChange != null) {
+                                InfoRow("电量变化", "${capacityChange}%")
+                            }
+                            InfoRow("亮屏", formatDurationHours(stats.screenOnTimeMs))
+                            InfoRow("息屏", formatDurationHours(stats.screenOffTimeMs))
+//                        InfoRow("记录ID", detailState.name.dropLast(4))
                         }
-                        InfoRow("亮屏", formatDurationHours(stats.screenOnTimeMs))
-                        InfoRow("息屏", formatDurationHours(stats.screenOffTimeMs))
-//                        InfoRow("记录ID", detail.name.dropLast(4))
                     }
                 }
             }
@@ -396,7 +396,7 @@ fun RecordDetailScreen(
             }
 
             if (
-                detail.type == BatteryStatus.Discharging &&
+                detailState?.type == BatteryStatus.Discharging &&
                 recordAppDetailEntries.isNotEmpty()
             ) {
                 SplicedColumnGroup(title = "应用详情") {
@@ -440,6 +440,21 @@ fun RecordDetailScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun RecordDetailChartLoading(
+    modifier: Modifier,
+    chartHeight: Dp
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(chartHeight),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
     }
 }
 

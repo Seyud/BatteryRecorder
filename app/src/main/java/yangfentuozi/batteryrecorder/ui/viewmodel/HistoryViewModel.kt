@@ -64,6 +64,8 @@ class HistoryViewModel : ViewModel() {
     private val _recordAppDetailEntries = MutableStateFlow<List<RecordAppDetailUiEntry>>(emptyList())
     val recordAppDetailEntries: StateFlow<List<RecordAppDetailUiEntry>> =
         _recordAppDetailEntries.asStateFlow()
+    private val _isRecordChartLoading = MutableStateFlow(false)
+    val isRecordChartLoading: StateFlow<Boolean> = _isRecordChartLoading.asStateFlow()
 
     // recordPoints 保存从记录文件读取并完成“放电正负显示映射”后的原始点。
     // 它仍然保留 ChartPoint，是因为 computePowerW 前还需要读取原始功率字段。
@@ -107,6 +109,8 @@ class HistoryViewModel : ViewModel() {
     private var currentListType: BatteryStatus? = null
     private var hasInitializedListContext = false
     private var listLoadToken: Long = 0L
+    private var detailLoadToken: Long = 0L
+    private var chartComputeToken: Long = 0L
 
     private companion object {
         const val PAGE_SIZE = 10
@@ -219,20 +223,20 @@ class HistoryViewModel : ViewModel() {
     }
 
     fun loadRecord(context: Context, recordsFile: RecordsFile) {
-        if (_isLoading.value) return
+        val detailToken = detailLoadToken + 1
+        detailLoadToken = detailToken
         viewModelScope.launch {
             _isLoading.value = true
+            _isRecordChartLoading.value = true
+            clearRecordDetailState()
             try {
                 val dischargeDisplayPositive = getDischargeDisplayPositive(context)
                 recordDetailContext = context.applicationContext
                 val recordFile = recordsFile.toFile(context)
                 if (recordFile == null) {
+                    if (detailToken != detailLoadToken) return@launch
                     _userMessage.value = "记录文件不存在"
-                    _recordDetail.value = null
-                    recordPoints = emptyList()
-                    recordLineRecords = emptyList()
-                    _recordAppDetailEntries.value = emptyList()
-                    recomputeRecordChartUiState()
+                    _isRecordChartLoading.value = false
                     return@launch
                 }
 
@@ -246,6 +250,7 @@ class HistoryViewModel : ViewModel() {
                     )
                     Triple(detail, lineRecords, appEntries)
                 }
+                if (detailToken != detailLoadToken) return@launch
                 val points = mapChartPointsForDisplay(
                     points = lineRecords.toChartPoints(),
                     batteryStatus = recordsFile.type,
@@ -255,19 +260,19 @@ class HistoryViewModel : ViewModel() {
                 recordLineRecords = lineRecords
                 recordPoints = points
                 _recordAppDetailEntries.value = appEntries
-                recomputeRecordChartUiState()
+                requestRecordChartUiStateRecompute(detailToken)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (detailToken != detailLoadToken) return@launch
                 LoggerX.e<HistoryViewModel>("[记录详情] 加载失败: ${recordsFile.name}", tr = e)
                 _userMessage.value = "加载记录详情失败"
-                _recordDetail.value = null
-                recordPoints = emptyList()
-                recordLineRecords = emptyList()
-                _recordAppDetailEntries.value = emptyList()
-                recomputeRecordChartUiState()
+                clearRecordDetailState()
+                _isRecordChartLoading.value = false
             } finally {
-                _isLoading.value = false
+                if (detailToken == detailLoadToken) {
+                    _isLoading.value = false
+                }
             }
         }
     }
@@ -336,7 +341,7 @@ class HistoryViewModel : ViewModel() {
                         recordPoints = emptyList()
                         recordLineRecords = emptyList()
                         _recordAppDetailEntries.value = emptyList()
-                        recomputeRecordChartUiState()
+                        requestRecordChartUiStateRecompute()
                     }
                     _userMessage.value = "删除成功"
                 } else {
@@ -484,28 +489,74 @@ class HistoryViewModel : ViewModel() {
         this.dualCellEnabled = dualCellEnabled
         this.calibrationValue = calibrationValue
         this.recordScreenOffEnabled = recordScreenOffEnabled
-        recomputeRecordChartUiState()
+        requestRecordChartUiStateRecompute()
     }
 
-    private fun recomputeRecordChartUiState() {
-        // 第一步：把原始记录点换算成图表可直接消费的瓦特值模型。
-        val displayPoints = mapDisplayPoints(
-            detailType = _recordDetail.value?.type,
-            rawPoints = recordPoints,
-            dualCellEnabled = dualCellEnabled,
-            calibrationValue = calibrationValue
-        )
-        // 第二步：趋势点始终基于“过滤后的展示点”计算，确保原始曲线和趋势曲线遵循同一展示语义。
-        val filteredDisplayPoints = normalizeRecordDetailChartPoints(
-            points = displayPoints,
-            recordScreenOffEnabled = recordScreenOffEnabled
-        )
-        // 第三步：保留原始点给原始曲线/标记使用，同时额外生成趋势点给趋势曲线使用。
-        val trendPoints = computeTrendPoints(filteredDisplayPoints)
-        _recordChartUiState.value = computeViewportState(
-            points = displayPoints,
-            trendPoints = trendPoints
-        )
+    /**
+     * 异步重算记录详情图表状态。
+     *
+     * @param expectedDetailToken 期望命中的详情加载令牌；为 null 时沿用当前令牌
+     * @result 在后台线程完成图表派生计算，并且仅允许当前详情上下文回写结果
+     */
+    private fun requestRecordChartUiStateRecompute(expectedDetailToken: Long? = null) {
+        val detailToken = expectedDetailToken ?: detailLoadToken
+        val computeToken = chartComputeToken + 1
+        chartComputeToken = computeToken
+        val detailType = _recordDetail.value?.type
+        val rawPoints = recordPoints
+        val dualCellEnabled = dualCellEnabled
+        val calibrationValue = calibrationValue
+        val recordScreenOffEnabled = recordScreenOffEnabled
+
+        viewModelScope.launch {
+            try {
+                val chartUiState = withContext(Dispatchers.Default) {
+                    // 第一步：把原始记录点换算成图表可直接消费的瓦特值模型。
+                    val displayPoints = mapDisplayPoints(
+                        detailType = detailType,
+                        rawPoints = rawPoints,
+                        dualCellEnabled = dualCellEnabled,
+                        calibrationValue = calibrationValue
+                    )
+                    // 第二步：趋势点始终基于“过滤后的展示点”计算，确保原始曲线和趋势曲线遵循同一展示语义。
+                    val filteredDisplayPoints = normalizeRecordDetailChartPoints(
+                        points = displayPoints,
+                        recordScreenOffEnabled = recordScreenOffEnabled
+                    )
+                    // 第三步：保留原始点给原始曲线/标记使用，同时额外生成趋势点给趋势曲线使用。
+                    val trendPoints = computeTrendPoints(filteredDisplayPoints)
+                    computeViewportState(
+                        points = displayPoints,
+                        trendPoints = trendPoints
+                    )
+                }
+                if (detailToken != detailLoadToken || computeToken != chartComputeToken) return@launch
+                _recordChartUiState.value = chartUiState
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (detailToken != detailLoadToken || computeToken != chartComputeToken) return@launch
+                LoggerX.e<HistoryViewModel>("[记录详情] 图表状态重算失败", tr = e)
+                _recordChartUiState.value = RecordDetailChartUiState()
+            } finally {
+                if (detailToken == detailLoadToken && computeToken == chartComputeToken) {
+                    _isRecordChartLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * 清空当前详情页状态，确保切换记录时不会短暂显示上一条记录的数据。
+     *
+     * @result 详情记录、图表状态、应用详情与缓存点位全部被同步重置
+     */
+    private fun clearRecordDetailState() {
+        _recordDetail.value = null
+        recordPoints = emptyList()
+        recordLineRecords = emptyList()
+        _recordAppDetailEntries.value = emptyList()
+        _recordChartUiState.value = RecordDetailChartUiState()
     }
 
     private fun mapDisplayPoints(
