@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,10 +36,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,6 +66,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
 import yangfentuozi.batteryrecorder.ui.components.charts.FixedPowerAxisMode
@@ -69,6 +78,7 @@ import yangfentuozi.batteryrecorder.ui.dialog.history.ChartGuideDialog
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.HistoryViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.RecordAppDetailUiEntry
+import yangfentuozi.batteryrecorder.ui.viewmodel.RecordDetailPowerUiState
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
 import yangfentuozi.batteryrecorder.utils.AppIconMemoryCache
 import yangfentuozi.batteryrecorder.utils.formatDateTime
@@ -95,6 +105,7 @@ fun RecordDetailScreen(
     val record by viewModel.recordDetail.collectAsState()
     val chartUiState by viewModel.recordChartUiState.collectAsState()
     val recordAppDetailEntries by viewModel.recordAppDetailEntries.collectAsState()
+    val recordDetailPowerUiState by viewModel.recordDetailPowerUiState.collectAsState()
     val isRecordChartLoading by viewModel.isRecordChartLoading.collectAsState()
     val userMessage by viewModel.userMessage.collectAsState()
     val dualCellEnabled by settingsViewModel.dualCellEnabled.collectAsState()
@@ -142,6 +153,10 @@ fun RecordDetailScreen(
 
     LaunchedEffect(recordIntervalMs) {
         viewModel.updateRecordDetailSamplingConfig(recordIntervalMs)
+    }
+
+    LaunchedEffect(dischargeDisplayPositive) {
+        viewModel.updateRecordDetailDisplayConfig(dischargeDisplayPositive)
     }
 
     LaunchedEffect(recordsFile) {
@@ -372,10 +387,21 @@ fun RecordDetailScreen(
                                     formatDurationHours(durationMs)
                                 })"
                             )
-                            InfoRow(
-                                "平均功率",
-                                formatPower(stats.averagePower, dualCellEnabled, calibrationValue)
-                            )
+                            if (
+                                detailState.type == BatteryStatus.Discharging &&
+                                recordDetailPowerUiState != null
+                            ) {
+                                RecordDetailPowerSection(
+                                    powerUiState = recordDetailPowerUiState!!,
+                                    dualCellEnabled = dualCellEnabled,
+                                    calibrationValue = calibrationValue
+                                )
+                            } else {
+                                InfoRow(
+                                    "平均功率",
+                                    formatPower(stats.averagePower, dualCellEnabled, calibrationValue)
+                                )
+                            }
                             if (detailState.type == BatteryStatus.Charging && capacityChange != null) {
                                 InfoRow("电量变化", "${capacityChange}%")
                             }
@@ -595,6 +621,105 @@ private fun buildAvgAndTempText(
 
 private fun buildMaxTempText(entry: RecordAppDetailUiEntry): String =
     "MAX:${formatTempText(entry.maxTempCelsius)}"
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordDetailPowerSection(
+    powerUiState: RecordDetailPowerUiState,
+    dualCellEnabled: Boolean,
+    calibrationValue: Int
+) {
+    Row(
+        modifier = Modifier.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RecordDetailPowerHeader(
+            modifier = Modifier.fillMaxWidth(0.3f)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = buildDetailPowerSummaryText(
+                powerUiState = powerUiState,
+                dualCellEnabled = dualCellEnabled,
+                calibrationValue = calibrationValue
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordDetailPowerHeader(modifier: Modifier = Modifier) {
+    val tooltipState = rememberTooltipState()
+    val coroutineScope = rememberCoroutineScope()
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+            TooltipAnchorPosition.Above
+        ),
+        tooltip = {
+            PlainTooltip(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                Text("全局平均/亮屏平均/息屏平均")
+            }
+        },
+        state = tooltipState,
+        enableUserInput = false
+    ) {
+        Text(
+            text = "功耗 ?",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                coroutineScope.launch {
+                    tooltipState.show()
+                }
+            }
+        )
+    }
+}
+
+private fun formatDetailPowerValue(
+    power: Double?,
+    dualCellEnabled: Boolean,
+    calibrationValue: Int
+): String {
+    if (power == null) return "--"
+    return formatPower(power, dualCellEnabled, calibrationValue)
+}
+
+private fun buildDetailPowerSummaryText(
+    powerUiState: RecordDetailPowerUiState,
+    dualCellEnabled: Boolean,
+    calibrationValue: Int
+): String {
+    val averageText = formatDetailPowerValue(
+        power = powerUiState.averagePower,
+        dualCellEnabled = dualCellEnabled,
+        calibrationValue = calibrationValue
+    )
+    val screenOnText = formatDetailPowerValue(
+        power = powerUiState.screenOnAveragePower,
+        dualCellEnabled = dualCellEnabled,
+        calibrationValue = calibrationValue
+    )
+    val screenOffText = formatDetailPowerValue(
+        power = powerUiState.screenOffAveragePower,
+        dualCellEnabled = dualCellEnabled,
+        calibrationValue = calibrationValue
+    )
+    return "$averageText / $screenOnText / $screenOffText"
+}
 
 private fun formatTempText(tempCelsius: Double?): String {
     if (tempCelsius == null) return "--℃"

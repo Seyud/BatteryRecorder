@@ -15,6 +15,8 @@ import yangfentuozi.batteryrecorder.data.history.HistoryRecord
 import yangfentuozi.batteryrecorder.data.history.HistoryRepository
 import yangfentuozi.batteryrecorder.data.history.HistoryRepository.toFile
 import yangfentuozi.batteryrecorder.data.history.RecordAppStatsComputer
+import yangfentuozi.batteryrecorder.data.history.RecordDetailPowerStats
+import yangfentuozi.batteryrecorder.data.history.RecordDetailPowerStatsComputer
 import yangfentuozi.batteryrecorder.data.model.ChartPoint
 import yangfentuozi.batteryrecorder.data.model.RecordDetailChartPoint
 import yangfentuozi.batteryrecorder.data.model.normalizeRecordDetailChartPoints
@@ -49,6 +51,19 @@ data class RecordAppDetailUiEntry(
     val isScreenOff: Boolean
 )
 
+data class RecordDetailPowerUiState(
+    val averagePower: Double,
+    val screenOnAveragePower: Double?,
+    val screenOffAveragePower: Double?
+)
+
+private data class LoadedRecordDetailState(
+    val detail: HistoryRecord,
+    val lineRecords: List<LineRecord>,
+    val powerStats: RecordDetailPowerStats?,
+    val appEntries: List<RecordAppDetailUiEntry>
+)
+
 class HistoryViewModel : ViewModel() {
     private val _records = MutableStateFlow<List<HistoryRecord>>(emptyList())
     val records: StateFlow<List<HistoryRecord>> = _records.asStateFlow()
@@ -64,15 +79,21 @@ class HistoryViewModel : ViewModel() {
     private val _recordAppDetailEntries = MutableStateFlow<List<RecordAppDetailUiEntry>>(emptyList())
     val recordAppDetailEntries: StateFlow<List<RecordAppDetailUiEntry>> =
         _recordAppDetailEntries.asStateFlow()
+    private val _recordDetailPowerUiState = MutableStateFlow<RecordDetailPowerUiState?>(null)
+    val recordDetailPowerUiState: StateFlow<RecordDetailPowerUiState?> =
+        _recordDetailPowerUiState.asStateFlow()
     private val _isRecordChartLoading = MutableStateFlow(false)
     val isRecordChartLoading: StateFlow<Boolean> = _isRecordChartLoading.asStateFlow()
 
     // recordPoints 保存从记录文件读取并完成“放电正负显示映射”后的原始点。
     // 它仍然保留 ChartPoint，是因为 computePowerW 前还需要读取原始功率字段。
+    private var rawRecordDetail: HistoryRecord? = null
+    private var rawRecordDetailPowerStats: RecordDetailPowerStats? = null
     private var recordPoints: List<ChartPoint> = emptyList()
     private var recordLineRecords: List<LineRecord> = emptyList()
     private var recordDetailSamplingIntervalMs = ConfigConstants.DEF_RECORD_INTERVAL_MS
     private var recordDetailContext: Context? = null
+    private var detailDischargeDisplayPositive = ConfigConstants.DEF_DISCHARGE_DISPLAY_POSITIVE
 
     // 这三个字段是图表派生状态的输入，不需要被外部订阅，因此使用普通字段即可。
     private var dualCellEnabled = ConfigConstants.DEF_DUAL_CELL_ENABLED
@@ -231,6 +252,7 @@ class HistoryViewModel : ViewModel() {
             clearRecordDetailState()
             try {
                 val dischargeDisplayPositive = getDischargeDisplayPositive(context)
+                detailDischargeDisplayPositive = dischargeDisplayPositive
                 recordDetailContext = context.applicationContext
                 val recordFile = recordsFile.toFile(context)
                 if (recordFile == null) {
@@ -240,26 +262,37 @@ class HistoryViewModel : ViewModel() {
                     return@launch
                 }
 
-                val (detail, lineRecords, appEntries) = withContext(Dispatchers.IO) {
+                val loadedState = withContext(Dispatchers.IO) {
                     val detail = HistoryRepository.loadRecord(context, recordFile)
                     val lineRecords = HistoryRepository.loadLineRecords(recordFile)
+                    val powerStats = buildRecordDetailPowerStats(
+                        detailType = recordsFile.type,
+                        lineRecords = lineRecords
+                    )
                     val appEntries = buildRecordAppDetailEntries(
                         context = context.applicationContext,
                         detailType = recordsFile.type,
                         lineRecords = lineRecords
                     )
-                    Triple(detail, lineRecords, appEntries)
+                    LoadedRecordDetailState(
+                        detail = detail,
+                        lineRecords = lineRecords,
+                        powerStats = powerStats,
+                        appEntries = appEntries
+                    )
                 }
                 if (detailToken != detailLoadToken) return@launch
                 val points = mapChartPointsForDisplay(
-                    points = lineRecords.toChartPoints(),
+                    points = loadedState.lineRecords.toChartPoints(),
                     batteryStatus = recordsFile.type,
                     dischargeDisplayPositive = dischargeDisplayPositive
                 )
-                _recordDetail.value = mapHistoryRecordForDisplay(detail, dischargeDisplayPositive)
-                recordLineRecords = lineRecords
+                rawRecordDetail = loadedState.detail
+                rawRecordDetailPowerStats = loadedState.powerStats
+                applyRecordDetailDisplayConfig()
+                recordLineRecords = loadedState.lineRecords
                 recordPoints = points
-                _recordAppDetailEntries.value = appEntries
+                _recordAppDetailEntries.value = loadedState.appEntries
                 requestRecordChartUiStateRecompute(detailToken)
             } catch (e: CancellationException) {
                 throw e
@@ -275,6 +308,18 @@ class HistoryViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    /**
+     * 更新详情页放电功耗的显示符号配置。
+     *
+     * @param dischargeDisplayPositive 是否将放电显示为正值
+     * @result 仅刷新详情页顶部统计与记录详情，不触发图表重算
+     */
+    fun updateRecordDetailDisplayConfig(dischargeDisplayPositive: Boolean) {
+        if (detailDischargeDisplayPositive == dischargeDisplayPositive) return
+        detailDischargeDisplayPositive = dischargeDisplayPositive
+        applyRecordDetailDisplayConfig()
     }
 
     fun updateRecordDetailSamplingConfig(recordIntervalMs: Long) {
@@ -552,11 +597,48 @@ class HistoryViewModel : ViewModel() {
      * @result 详情记录、图表状态、应用详情与缓存点位全部被同步重置
      */
     private fun clearRecordDetailState() {
+        rawRecordDetail = null
+        rawRecordDetailPowerStats = null
         _recordDetail.value = null
+        _recordDetailPowerUiState.value = null
         recordPoints = emptyList()
         recordLineRecords = emptyList()
         _recordAppDetailEntries.value = emptyList()
         _recordChartUiState.value = RecordDetailChartUiState()
+    }
+
+    /**
+     * 基于缓存的原始详情数据重新应用放电展示配置。
+     *
+     * @result 详情页记录头与功耗拆分统计同步刷新，避免切换设置后出现显示不一致
+     */
+    private fun applyRecordDetailDisplayConfig() {
+        val detail = rawRecordDetail
+        _recordDetail.value = detail?.let {
+            mapHistoryRecordForDisplay(it, detailDischargeDisplayPositive)
+        }
+        _recordDetailPowerUiState.value = rawRecordDetailPowerStats?.let { stats ->
+            mapRecordDetailPowerUiState(stats, detailDischargeDisplayPositive)
+        }
+    }
+
+    /**
+     * 将详情页功耗统计映射为当前显示口径。
+     *
+     * @param stats 详情页功耗拆分统计的原始功率值
+     * @param dischargeDisplayPositive 是否将放电视为正值
+     * @result 返回已经完成正负语义映射、但仍保留原始功率单位的 UI 状态
+     */
+    private fun mapRecordDetailPowerUiState(
+        stats: RecordDetailPowerStats,
+        dischargeDisplayPositive: Boolean
+    ): RecordDetailPowerUiState {
+        val multiplier = if (dischargeDisplayPositive) -1.0 else 1.0
+        return RecordDetailPowerUiState(
+            averagePower = stats.averagePowerRaw * multiplier,
+            screenOnAveragePower = stats.screenOnAveragePowerRaw?.times(multiplier),
+            screenOffAveragePower = stats.screenOffAveragePowerRaw?.times(multiplier)
+        )
     }
 
     private fun mapDisplayPoints(
@@ -630,18 +712,20 @@ class HistoryViewModel : ViewModel() {
         lineRecords: List<LineRecord>
     ): List<RecordAppDetailUiEntry> {
         if (detailType != BatteryStatus.Discharging) return emptyList()
-        val statsEntries = RecordAppStatsComputer.compute(lineRecords, recordDetailSamplingIntervalMs)
+        val statsEntries = RecordAppStatsComputer.compute(
+            lineRecords,
+            recordDetailSamplingIntervalMs
+        ).filterNot { it.isScreenOff }
         if (statsEntries.isEmpty()) return emptyList()
 
         val packageManager = context.packageManager
         return statsEntries.map { entry ->
-            val appLabel = if (entry.isScreenOff) {
-                "息屏详情"
-            } else {
-                resolveAppLabel(packageManager = packageManager, packageName = entry.packageName)
-            }
+            val appLabel = resolveAppLabel(
+                packageManager = packageManager,
+                packageName = entry.packageName
+            )
             RecordAppDetailUiEntry(
-                key = if (entry.isScreenOff) "screen_off" else entry.packageName.orEmpty(),
+                key = entry.packageName.orEmpty(),
                 packageName = entry.packageName,
                 appLabel = appLabel,
                 averagePowerRaw = entry.averagePowerRaw,
@@ -651,6 +735,21 @@ class HistoryViewModel : ViewModel() {
                 isScreenOff = entry.isScreenOff
             )
         }
+    }
+
+    /**
+     * 计算记录详情页顶部展示所需的功耗拆分统计。
+     *
+     * @param detailType 当前详情页记录类型
+     * @param lineRecords 当前详情页对应的有效记录点
+     * @result 放电记录返回功耗拆分统计，其它类型直接返回 null
+     */
+    private fun buildRecordDetailPowerStats(
+        detailType: BatteryStatus,
+        lineRecords: List<LineRecord>
+    ): RecordDetailPowerStats? {
+        if (detailType != BatteryStatus.Discharging) return null
+        return RecordDetailPowerStatsComputer.compute(lineRecords)
     }
 
     private fun resolveAppLabel(
