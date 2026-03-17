@@ -1,10 +1,12 @@
 package yangfentuozi.batteryrecorder.ui.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,8 +24,10 @@ import yangfentuozi.batteryrecorder.data.history.SceneStats
 import yangfentuozi.batteryrecorder.data.history.SceneStatsComputer
 import yangfentuozi.batteryrecorder.data.history.StatisticsRequest
 import yangfentuozi.batteryrecorder.data.history.SyncUtil
+import yangfentuozi.batteryrecorder.data.log.LogRepository
 import yangfentuozi.batteryrecorder.ipc.Service
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 class MainViewModel : ViewModel() {
     private val _serviceConnected = MutableStateFlow(false)
@@ -34,6 +38,9 @@ class MainViewModel : ViewModel() {
 
     private val _showAboutDialog = MutableStateFlow(false)
     val showAboutDialog: StateFlow<Boolean> = _showAboutDialog.asStateFlow()
+
+    private val _userMessage = MutableStateFlow<String?>(null)
+    val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
     private val _chargeSummary = MutableStateFlow<HistorySummary?>(null)
     val chargeSummary: StateFlow<HistorySummary?> = _chargeSummary.asStateFlow()
@@ -102,6 +109,36 @@ class MainViewModel : ViewModel() {
 
     fun dismissAboutDialog() {
         _showAboutDialog.value = false
+    }
+
+    /**
+     * 导出首页日志 ZIP。
+     *
+     * @param context 应用上下文。
+     * @param destinationUri SAF 目标 URI。
+     * @return 无返回值。
+     */
+    fun exportLogs(context: Context, destinationUri: Uri) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    LogRepository.exportLogsZip(
+                        context = context,
+                        destinationUri = destinationUri
+                    )
+                }
+                _userMessage.value = "导出成功"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LoggerX.e<MainViewModel>("[导出] 日志导出失败", tr = e)
+                _userMessage.value = "导出失败"
+            }
+        }
+    }
+
+    fun consumeUserMessage() {
+        _userMessage.value = null
     }
 
     fun loadStatistics(

@@ -38,14 +38,25 @@ data class HistorySummary(
 
 object HistoryRepository {
 
-    // 记录文件名由“起始时间戳.txt”组成；排序与最新文件判定都以该业务时间为准。
-    private fun recordFileTimestamp(file: File): Long =
+    // 记录文件名由“起始时间戳.txt”组成；无法解析的文件必须显式告警并从记录链路中过滤。
+    private fun recordFileTimestampOrNull(file: File): Long? =
         file.name.substringBeforeLast('.').toLongOrNull()
-            ?: throw IllegalStateException("非法记录文件名: ${file.absolutePath}")
 
     private fun listSortedRecordFiles(dir: File): List<File> =
-        dir.listFiles()?.filter { it.isFile }
-            ?.sortedByDescending(::recordFileTimestamp)
+        dir.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile }
+            ?.mapNotNull { file ->
+                val timestamp = recordFileTimestampOrNull(file)
+                if (timestamp == null) {
+                    LoggerX.w<HistoryRepository>("[记录] 跳过非法记录文件: ${file.absolutePath}")
+                    return@mapNotNull null
+                }
+                file to timestamp
+            }
+            ?.sortedByDescending { it.second }
+            ?.map { it.first }
+            ?.toList()
             ?: emptyList()
 
     fun RecordsFile.toFile(context: Context): File? {

@@ -33,6 +33,7 @@ import yangfentuozi.batteryrecorder.ui.theme.AppShape
 fun BatteryRecorderTopAppBar(
     onSettingsClick: () -> Unit = {},
     onRefreshClick: () -> Unit = {},
+    onExportLogsClick: () -> Unit = {},
     onStopServerClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     showStopServer: Boolean = true,
@@ -78,6 +79,15 @@ fun BatteryRecorderTopAppBar(
                         onClick = {
                             showMenu = false
                             onStopServerClick()
+                        }
+                    )
+                }
+                if (!showBackButton) {
+                    DropdownMenuItem(
+                        text = { Text("导出日志") },
+                        onClick = {
+                            showMenu = false
+                            onExportLogsClick()
                         }
                     )
                 }

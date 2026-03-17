@@ -1,5 +1,8 @@
 package yangfentuozi.batteryrecorder.ui.screens.home
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +53,8 @@ import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.LiveRecordViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.MainViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +71,7 @@ fun HomeScreen(
     val serviceConnected by viewModel.serviceConnected.collectAsState()
     val showStopDialog by viewModel.showStopDialog.collectAsState()
     val showAboutDialog by viewModel.showAboutDialog.collectAsState()
+    val userMessage by viewModel.userMessage.collectAsState()
     var showAdbGuideDialog by remember { mutableStateOf(false) }
     val chargeSummary by viewModel.chargeSummary.collectAsState()
     val dischargeSummary by viewModel.dischargeSummary.collectAsState()
@@ -88,6 +94,16 @@ fun HomeScreen(
     val prediction by viewModel.prediction.collectAsState()
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    val logExportFileNameFormatter = remember {
+        DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss")
+    }
+    val exportLogsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportLogs(context, uri)
+        }
+    }
 
     val listener = remember {
         object : IRecordListener.Stub() {
@@ -132,6 +148,12 @@ fun HomeScreen(
         )
     }
 
+    LaunchedEffect(userMessage) {
+        val message = userMessage ?: return@LaunchedEffect
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        viewModel.consumeUserMessage()
+    }
+
     // 监听生命周期事件
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -165,6 +187,14 @@ fun HomeScreen(
             topBar = {
                 BatteryRecorderTopAppBar(
                     onSettingsClick = onNavigateToSettings,
+                    onExportLogsClick = {
+                        val fileName = buildString {
+                            append("log_")
+                            append(LocalDateTime.now().format(logExportFileNameFormatter))
+                            append(".zip")
+                        }
+                        exportLogsLauncher.launch(fileName)
+                    },
                     onStopServerClick = viewModel::showStopDialog,
                     onAboutClick = viewModel::showAboutDialog,
                     onRefreshClick = {
