@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.shared.util
 
 import android.util.Log
+import yangfentuozi.batteryrecorder.shared.BuildConfig
 import yangfentuozi.batteryrecorder.shared.config.ConfigConstants
 import java.io.BufferedWriter
 import java.io.File
@@ -51,7 +52,9 @@ object LoggerX {
     var logLevel: LogLevel = ConfigConstants.DEF_LOG_LEVEL
 
     fun isLoggable(level: LogLevel): Boolean {
-        val allowedPriority = logLevel
+        val allowedPriority =
+            if (BuildConfig.DEBUG) logLevel.coerceAtMost(LogLevel.Debug)
+            else logLevel
         return level.priority >= allowedPriority.priority
     }
 

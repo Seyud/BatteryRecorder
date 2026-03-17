@@ -40,21 +40,7 @@ class Monitor(
         }
     }
 
-    private val displayCallback: IDisplayManagerCallback = object : IDisplayManagerCallback.Stub() {
-        @Keep
-        override fun onDisplayEvent(displayId: Int, event: Int) {
-            if (alwaysPollingScreenStatusEnabled) {
-                return
-            }
-            isInteractive = iPowerManager.isInteractive
-            if (isInteractive && paused) {
-                notifyLock()
-            }
-        }
-    }
-
-    @Volatile
-    private var displayCallbackRegistered = false
+    private var displayCallback: IDisplayManagerCallback? = null
 
     @Volatile
     private var currForegroundApp: String? = null
@@ -76,7 +62,9 @@ class Monitor(
         set(value) {
             if (value != mAlwaysPollingScreenStatusEnabled) {
                 mAlwaysPollingScreenStatusEnabled = value
-                if (!value) {
+                if (value) {
+                    unregisterDisplayEventCallback()
+                } else {
                     registerDisplayEventCallback()
                 }
             }
@@ -146,9 +134,7 @@ class Monitor(
     fun start() {
         try {
             iActivityTaskManager.registerTaskStackListener(taskStackListener)
-            if (!alwaysPollingScreenStatusEnabled) {
-                registerDisplayEventCallback()
-            }
+            if (alwaysPollingScreenStatusEnabled) registerDisplayEventCallback()
         } catch (e: RemoteException) {
             throw RuntimeException("start: 注册任务栈监听失败", e)
         }
@@ -177,17 +163,21 @@ class Monitor(
         }
     }
 
-    /**
-     * 确保亮屏状态回调只注册一次。
-     *
-     * @return 无返回值
-     */
     private fun registerDisplayEventCallback() {
-        if (displayCallbackRegistered) {
-            return
+        displayCallback = object : IDisplayManagerCallback.Stub() {
+            @Keep
+            override fun onDisplayEvent(displayId: Int, event: Int) {
+                isInteractive = iPowerManager.isInteractive
+                if (isInteractive && paused) {
+                    notifyLock()
+                }
+            }
         }
         iDisplayManager.registerCallback(displayCallback)
-        displayCallbackRegistered = true
+    }
+
+    private fun unregisterDisplayEventCallback() {
+        displayCallback = null
     }
 
     fun stop() {
