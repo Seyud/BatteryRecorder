@@ -44,9 +44,16 @@ object SysfsSampler: Sampler {
             }
             Os.chmod(libraryTmpPath, "400".toInt(8))
             System.load(libraryTmpPath)
-            return nativeInit() == 1
+            LoggerX.i<SysfsSampler>("[采样] JNI 库加载成功: $libraryTmpPath")
+            val initResult = nativeInit() == 1
+            if (initResult) {
+                LoggerX.i<SysfsSampler>("[采样] nativeInit() 成功")
+            } else {
+                LoggerX.w<SysfsSampler>("[采样] nativeInit() 返回失败，回退 DumpsysSampler")
+            }
+            return initResult
         } catch (e: Throwable) {
-            LoggerX.w<SysfsSampler>("加载 JNI 失败", tr = e)
+            LoggerX.w<SysfsSampler>("[采样] 加载 JNI 失败，回退 DumpsysSampler", tr = e)
             return false
         }
     }

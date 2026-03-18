@@ -6,9 +6,9 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import yangfentuozi.batteryrecorder.shared.config.ConfigConstants
 import yangfentuozi.batteryrecorder.shared.config.ConfigUtil
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 class ConfigProvider : ContentProvider() {
 
@@ -16,7 +16,7 @@ class ConfigProvider : ContentProvider() {
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         if (method == "requestConfig") {
-            Log.i("BatteryRecorderApp", "requestConfig")
+            LoggerX.i<ConfigProvider>("[配置] 收到 requestConfig 请求")
 
             val prefs = requireContext().getSharedPreferences(
                 ConfigConstants.PREFS_NAME,

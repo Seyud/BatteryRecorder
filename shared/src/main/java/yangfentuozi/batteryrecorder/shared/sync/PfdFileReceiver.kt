@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.shared.sync
 
 import android.os.ParcelFileDescriptor
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
@@ -19,10 +20,14 @@ object PfdFileReceiver {
         callback: ((savedFile: File, size: Long) -> Unit)? = null
     ) {
         if (!outputDir.exists() && !outputDir.mkdirs()) {
+            LoggerX.e<PfdFileReceiver>("[SYNC] 创建接收目录失败: ${outputDir.absolutePath}")
             throw IOException("Failed to create dir: ${outputDir.absolutePath}")
         }
 
         val basePath = outputDir.toPath()
+        LoggerX.i<PfdFileReceiver>("[SYNC] 开始接收文件到目录: ${outputDir.absolutePath}")
+        var receivedCount = 0
+        var receivedBytes = 0L
 
         ParcelFileDescriptor.AutoCloseInputStream(readPfd).use { raw ->
             BufferedInputStream(raw, SyncConstants.BUF_SIZE).use { input ->
@@ -32,6 +37,7 @@ object PfdFileReceiver {
 
                     when (code) {
                         SyncConstants.CODE_FINISHED -> {
+                            LoggerX.i<PfdFileReceiver>("[SYNC] 文件接收完成: count=$receivedCount bytes=$receivedBytes")
                             return
                         }
 
@@ -39,7 +45,7 @@ object PfdFileReceiver {
                         }
 
                         else -> {
-                            throw IOException("Invalid control code: ${code.hexString}}")
+                            throw IOException("Invalid control code: ${code.hexString}")
                         }
                     }
 
@@ -52,6 +58,12 @@ object PfdFileReceiver {
                     if (size < 0) throw IOException("Negative size: $size")
 
                     val outFile = basePath.resolve(relativizePath).toFile()
+                    outFile.parentFile?.let { parent ->
+                        if (!parent.exists() && !parent.mkdirs()) {
+                            LoggerX.e<PfdFileReceiver>("[SYNC] 创建父目录失败: ${parent.absolutePath}")
+                            throw IOException("Failed to create parent dir: ${parent.absolutePath}")
+                        }
+                    }
 
                     // 严格读 size 字节作为内容
                     BufferedOutputStream(FileOutputStream(outFile),
@@ -69,6 +81,9 @@ object PfdFileReceiver {
                         out.flush()
                     }
 
+                    receivedCount += 1
+                    receivedBytes += size
+                    LoggerX.d<PfdFileReceiver>("[SYNC] 接收文件: relative=$relativizePath size=$size")
                     callback?.invoke(outFile, size)
                 }
             }

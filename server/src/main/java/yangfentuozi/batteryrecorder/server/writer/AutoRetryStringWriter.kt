@@ -32,6 +32,7 @@ class AutoRetryStringWriter(
                     LoggerX.e<AutoRetryStringWriter>("retryRunnable: 重新打开 OutputStream 失败，多次重试失败，强行终止", tr = e)
                     throw RuntimeException()
                 }
+                LoggerX.w<AutoRetryStringWriter>("[写盘] OutputStream 已重建，继续写入重试")
             }
             synchronized(bufferLock) {
                 try {
@@ -44,7 +45,7 @@ class AutoRetryStringWriter(
                         LoggerX.e<AutoRetryStringWriter>("retryRunnable: 写入 OutputStream 失败，多次重试失败，强行终止", tr = e)
                         throw RuntimeException()
                     }
-                    LoggerX.e<AutoRetryStringWriter>("retryRunnable: 写入 OutputStream 失败，准备重试", tr = e)
+                    LoggerX.w<AutoRetryStringWriter>("[写盘] 写入 OutputStream 失败，准备重试: retryCount=$retryCount/$retryTimes", tr = e)
                     handler.postDelayed(this, retryIntervalMs)
                 }
             }
@@ -62,6 +63,7 @@ class AutoRetryStringWriter(
     fun write(stringBuilder: StringBuilder) {
         synchronized(bufferLock) {
             buffer.append(stringBuilder)
+            LoggerX.v<AutoRetryStringWriter>("[写盘] 缓冲入队: appendedChars=${stringBuilder.length} pendingChars=${buffer.length}")
             if (retryCount == -1) {
                 handler.post(retryRunnable)
             }

@@ -13,6 +13,7 @@ object Main {
     @Keep
     @JvmStatic
     fun main(args: Array<String>) {
+        LoggerX.i<Main>("[启动] main() 进入，准备初始化 Server")
         DdmHandleAppName.setAppName("battery_recorder", 0)
         // 设置OOM保活
         setSelfOomScoreAdj()
@@ -26,6 +27,8 @@ object Main {
         */
         // 指定日志文件夹
         LoggerX.logDirPath = "${Constants.SHELL_DATA_DIR_PATH}/${Constants.SHELL_LOG_DIR_PATH}"
+        LoggerX.i<Main>("[启动] 日志目录初始化完成: ${Constants.SHELL_DATA_DIR_PATH}/${Constants.SHELL_LOG_DIR_PATH}")
+        LoggerX.d<Main>("[启动] 即将进入 Server 初始化")
 
         Server()
     }

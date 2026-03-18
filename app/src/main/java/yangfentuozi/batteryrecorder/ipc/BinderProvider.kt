@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 class BinderProvider : ContentProvider() {
 
@@ -21,8 +21,10 @@ class BinderProvider : ContentProvider() {
         val binderAlive = binder?.pingBinder() == true
         if (binderAlive) {
             Service.binder = binder
+            LoggerX.i<BinderProvider>("[BINDER] 收到服务 Binder，alive=$binderAlive")
+        } else {
+            LoggerX.w<BinderProvider>("[BINDER] 收到空或失效 Binder，alive=$binderAlive")
         }
-        Log.i("BatteryRecorderApp", "[BINDER] received=$binderAlive")
         return Bundle.EMPTY
     }
 

@@ -5,6 +5,7 @@ import yangfentuozi.batteryrecorder.BuildConfig
 import yangfentuozi.batteryrecorder.shared.Constants
 import yangfentuozi.batteryrecorder.shared.config.ConfigConstants
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.abs
@@ -107,11 +108,15 @@ object DischargeRecordScanner {
             BatteryStatus.Discharging.dataDirName
         )
         if (!dataDir.isDirectory) return emptyList()
-        return dataDir.listFiles()
+        val files = dataDir.listFiles()
             ?.filter { it.isFile }
             ?.sortedByDescending { it.lastModified() }
             ?.take(effectiveRecentFileCount)
             ?: emptyList()
+        LoggerX.d<DischargeRecordScanner>(
+            "[预测] 选择最近放电文件: requested=$recentFileCount effective=$effectiveRecentFileCount selected=${files.size}"
+        )
+        return files
     }
 
     /**
@@ -124,7 +129,10 @@ object DischargeRecordScanner {
         onAcceptedFile: (AcceptedDischargeFile) -> Unit
     ): DischargeScanSummary? {
         val files = listRecentDischargeFiles(context, request.sceneStatsRecentFileCount)
-        if (files.isEmpty()) return null
+        if (files.isEmpty()) {
+            LoggerX.d<DischargeRecordScanner>("[预测] 无放电文件可扫描")
+            return null
+        }
 
         val maxGapMs = computeMaxGapMs(request.recordIntervalMs)
         val maxMultiplier = (request.predCurrentSessionWeightMaxX100 / 100.0).coerceIn(1.0, 5.0)
@@ -134,6 +142,9 @@ object DischargeRecordScanner {
                 currentDischargeFileName != null &&
                 maxMultiplier > 1.0 &&
                 halfLifeMs > 0.0
+        LoggerX.d<DischargeRecordScanner>(
+            "[预测] 开始扫描放电文件: selected=${files.size} maxGapMs=$maxGapMs enableWeight=$enableTimeDecayWeight current=$currentDischargeFileName"
+        )
 
         var acceptedFileCount = 0
         var rejectedNoValidDurationCount = 0
@@ -158,13 +169,19 @@ object DischargeRecordScanner {
                     RejectedReason.AbnormalDrainRate -> rejectedAbnormalDrainRateCount += 1
                     null -> {}
                 }
+                LoggerX.d<DischargeRecordScanner>(
+                    "[预测] 放电文件过滤: file=${file.name} reason=${result.rejectedReason}"
+                )
                 return@forEach
             }
             acceptedFileCount += 1
+            LoggerX.d<DischargeRecordScanner>(
+                "[预测] 放电文件通过: file=${file.name} intervals=${acceptedFile.intervals.size} rawDurationMs=${acceptedFile.rawTotalDurationMs} rawSocDrop=${acceptedFile.rawTotalCapDrop}"
+            )
             onAcceptedFile(acceptedFile)
         }
 
-        return DischargeScanSummary(
+        val summary = DischargeScanSummary(
             selectedFileCount = files.size,
             acceptedFileCount = acceptedFileCount,
             rejectedNoValidDurationCount = rejectedNoValidDurationCount,
@@ -172,6 +189,10 @@ object DischargeRecordScanner {
             rejectedNoSocDropCount = rejectedNoSocDropCount,
             rejectedAbnormalDrainRateCount = rejectedAbnormalDrainRateCount
         )
+        LoggerX.i<DischargeRecordScanner>(
+            "[预测] 放电扫描完成: selected=${summary.selectedFileCount} accepted=${summary.acceptedFileCount} noDuration=${summary.rejectedNoValidDurationCount} noEnergy=${summary.rejectedNoEnergyCount} noSoc=${summary.rejectedNoSocDropCount} abnormal=${summary.rejectedAbnormalDrainRateCount}"
+        )
+        return summary
     }
 
     private fun scanFile(
@@ -274,6 +295,11 @@ object DischargeRecordScanner {
                 fileEndTs != null &&
                 (BuildConfig.DEBUG || rawTotalDurationMs >= MIN_CURRENT_SESSION_MS) &&
                 (BuildConfig.DEBUG || rawTotalCapDrop >= MIN_CURRENT_SESSION_SOC_DROP)
+        if (useWeightedCurrentSession) {
+            LoggerX.d<DischargeRecordScanner>(
+                "[预测] 启用当次记录加权: file=${file.name} endTs=$fileEndTs rawDurationMs=$rawTotalDurationMs rawSocDrop=$rawTotalCapDrop"
+            )
+        }
 
         // 第二阶段根据是否启用当次加权生成最终区间，避免重复解析原文件。
         var effectiveTotalEnergyMagnitudeRawMs = 0.0

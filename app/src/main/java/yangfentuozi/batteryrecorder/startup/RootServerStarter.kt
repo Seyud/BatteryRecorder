@@ -16,6 +16,7 @@ object RootServerStarter {
         val command =
             "CLASSPATH=$(pm path yangfentuozi.batteryrecorder | cut -d: -f2) setsid app_process /system/bin yangfentuozi.batteryrecorder.server.Main </dev/null >/dev/null 2>&1 &"
         LoggerX.i<RootServerStarter>("[启动请求] 来源=$source，准备执行 ROOT 启动命令")
+        LoggerX.d<RootServerStarter>("[启动请求] 来源=$source，命令摘要=setsid app_process /system/bin yangfentuozi.batteryrecorder.server.Main")
         return try {
             Runtime.getRuntime().exec(
                 arrayOf(

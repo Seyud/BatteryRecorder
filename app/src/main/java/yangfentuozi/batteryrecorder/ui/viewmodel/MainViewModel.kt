@@ -67,12 +67,14 @@ class MainViewModel : ViewModel() {
 
     private val serviceListener = object : Service.ServiceConnection {
         override fun onServiceConnected() {
+            LoggerX.i<MainViewModel>("[首页] 服务已连接")
             mainHandler.post {
                 _serviceConnected.value = true
             }
         }
 
         override fun onServiceDisconnected() {
+            LoggerX.w<MainViewModel>("[首页] 服务已断开")
             mainHandler.post {
                 _serviceConnected.value = false
             }
@@ -82,6 +84,7 @@ class MainViewModel : ViewModel() {
     init {
         Service.addListener(serviceListener)
         _serviceConnected.value = Service.service != null
+        LoggerX.d<MainViewModel>("[首页] MainViewModel 初始化: serviceConnected=${_serviceConnected.value}")
     }
 
     override fun onCleared() {
@@ -98,6 +101,11 @@ class MainViewModel : ViewModel() {
     }
 
     fun stopService() {
+        if (Service.service == null) {
+            LoggerX.w<MainViewModel>("[首页] 用户请求停止服务，但服务未连接")
+        } else {
+            LoggerX.i<MainViewModel>("[首页] 用户请求停止服务")
+        }
         Thread {
             Service.service?.stopService()
         }.start()
@@ -121,12 +129,14 @@ class MainViewModel : ViewModel() {
     fun exportLogs(context: Context, destinationUri: Uri) {
         viewModelScope.launch {
             try {
+                LoggerX.i<MainViewModel>("[导出] 开始导出首页日志")
                 withContext(Dispatchers.IO) {
                     LogRepository.exportLogsZip(
                         context = context,
                         destinationUri = destinationUri
                     )
                 }
+                LoggerX.i<MainViewModel>("[导出] 首页日志导出成功")
                 _userMessage.value = "导出成功"
             } catch (e: CancellationException) {
                 throw e
@@ -145,7 +155,10 @@ class MainViewModel : ViewModel() {
         context: Context,
         request: StatisticsRequest = StatisticsRequest()
     ) {
-        if (_isLoadingStats.value) return
+        if (_isLoadingStats.value) {
+            LoggerX.v<MainViewModel>("[首页] loadStatistics 已在进行，跳过重复请求")
+            return
+        }
 
         startLoadStatistics(
             context = context,
@@ -157,7 +170,10 @@ class MainViewModel : ViewModel() {
         context: Context,
         request: StatisticsRequest = StatisticsRequest()
     ) {
-        if (_isLoadingStats.value) return
+        if (_isLoadingStats.value) {
+            LoggerX.v<MainViewModel>("[首页] refreshStatistics 已在进行，跳过")
+            return
+        }
         _chargeSummary.value = null
         _dischargeSummary.value = null
         _currentRecord.value = null
@@ -229,12 +245,16 @@ class MainViewModel : ViewModel() {
         request: StatisticsRequest
     ) {
         val generation = (++statisticsGeneration)
+        LoggerX.i<MainViewModel>(
+            "[首页] 开始加载统计: generation=$generation recentFileCount=${request.sceneStatsRecentFileCount} intervalMs=${request.recordIntervalMs}"
+        )
         _isLoadingStats.value = true
         val job = viewModelScope.launch {
             try {
                 val dischargeDisplayPositive = getDischargeDisplayPositive(context)
 
                 withContext(Dispatchers.IO) {
+                    LoggerX.d<MainViewModel>("[首页] 统计前触发同步")
                     runCatching { SyncUtil.sync(context) }
                 }
 
@@ -247,6 +267,10 @@ class MainViewModel : ViewModel() {
                 val currentRecord = loadLatestRecordForDisplay(context, dischargeDisplayPositive)
 
                 if (generation == statisticsGeneration) {
+                    LoggerX.d<MainViewModel>(
+                        "[首页] 基础统计加载完成: generation=$generation chargeSummary=${chargeSummary != null} " +
+                            "dischargeSummary=${dischargeSummary != null} currentRecord=${currentRecord != null}"
+                    )
                     _chargeSummary.value =
                         chargeSummary?.let {
                             mapHistorySummaryForDisplay(
@@ -285,9 +309,13 @@ class MainViewModel : ViewModel() {
                             kEffectiveN = stats?.kEffectiveN ?: 0.0,
                             upstreamInsufficientReason = stats?.insufficientReason
                         )
+                    LoggerX.i<MainViewModel>(
+                        "[首页] 场景统计与预测完成: generation=$generation sceneStats=${stats?.displayStats != null} prediction=${_prediction.value != null}"
+                    )
                 }
             } finally {
                 if (generation == statisticsGeneration) {
+                    LoggerX.d<MainViewModel>("[首页] 统计任务结束: generation=$generation")
                     _isLoadingStats.value = false
                 }
             }

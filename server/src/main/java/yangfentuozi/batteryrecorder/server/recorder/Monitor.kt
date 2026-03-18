@@ -210,7 +210,7 @@ class Monitor(
 
     private fun registerDisplayEventCallback() {
         if (displayCallbackRegistered) {
-            LoggerX.d<Monitor>("[屏幕] registerDisplayEventCallback: 已注册，跳过")
+            LoggerX.v<Monitor>("[屏幕] registerDisplayEventCallback: 已注册，跳过")
             return
         }
         LoggerX.d<Monitor>("[屏幕] registerDisplayEventCallback")
@@ -218,7 +218,7 @@ class Monitor(
             @Keep
             override fun onDisplayEvent(displayId: Int, event: Int) {
                 if (alwaysPollingScreenStatusEnabled) {
-                    LoggerX.d<Monitor>("[屏幕] DisplayEvent 已忽略：当前为轮询模式 displayId=$displayId event=$event")
+                    LoggerX.v<Monitor>("[屏幕] DisplayEvent 已忽略：当前为轮询模式 displayId=$displayId event=$event")
                     return
                 }
                 val oldIsInteractive = isInteractive
@@ -239,7 +239,7 @@ class Monitor(
      * 自实现注销屏幕事件回调，系统服务端检测进程退出自动处理
      */
     private fun unregisterDisplayEventCallback() {
-        LoggerX.d<Monitor>("[屏幕] unregisterDisplayEventCallback: 清空 DisplayCallback 引用")
+        LoggerX.v<Monitor>("[屏幕] unregisterDisplayEventCallback: 清空 DisplayCallback 引用")
         displayCallback = null
         displayCallbackRegistered = false
     }
@@ -262,10 +262,12 @@ class Monitor(
     }
 
     fun registerRecordListener(callback: IRecordListener) {
+        LoggerX.v<Monitor>("[监听] 注册记录回调")
         callbacks.register(callback)
     }
 
     fun unregisterRecordListener(callback: IRecordListener) {
+        LoggerX.v<Monitor>("[监听] 注销记录回调")
         callbacks.unregister(callback)
     }
 
@@ -273,7 +275,11 @@ class Monitor(
         val componentName = taskInfo.topActivity ?: return
         val packageName = componentName.packageName
         if (packageName == Constants.APP_PACKAGE_NAME) {
+            LoggerX.d<Monitor>("[前台] 焦点回到 App，尝试重新发送 Binder")
             sendBinder()
+        }
+        if (currForegroundApp != packageName) {
+            LoggerX.d<Monitor>("[前台] 应用切换: ${currForegroundApp} -> $packageName")
         }
         currForegroundApp = packageName
     }

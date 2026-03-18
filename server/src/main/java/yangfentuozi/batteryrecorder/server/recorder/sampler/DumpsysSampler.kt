@@ -16,6 +16,10 @@ class DumpsysSampler : Sampler {
             ServiceManager.getService("batteryproperties")
         )
 
+    init {
+        LoggerX.d<DumpsysSampler>("[采样] 启用 Dumpsys 回退采样器")
+    }
+
     override fun sample(): Sampler.BatteryData {
         val pipe = ParcelFileDescriptor.createPipe()
 
@@ -65,7 +69,7 @@ class DumpsysSampler : Sampler {
                 }
             }
         } catch (e: Exception) {
-            LoggerX.e<DumpsysSampler>("sample: 读取 dump 输出流失败", tr = e)
+            LoggerX.e<DumpsysSampler>("[采样] 读取 dump 输出流失败", tr = e)
         } finally {
             readSide.close()
         }

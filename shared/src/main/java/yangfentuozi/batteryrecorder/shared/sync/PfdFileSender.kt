@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.shared.sync
 
 import android.os.ParcelFileDescriptor
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.EOFException
@@ -18,21 +19,34 @@ object PfdFileSender {
         callback: ((File) -> Unit)? = null
     ) {
         val basePath = file.toPath()
+        LoggerX.i<PfdFileSender>("[SYNC] 开始发送文件: base=${file.absolutePath}")
+        var sentCount = 0
+        var sentBytes = 0L
         ParcelFileDescriptor.AutoCloseOutputStream(writePfd).use { raw ->
             BufferedOutputStream(raw, SyncConstants.BUF_SIZE).use { out ->
-                sendFileInner(out, file, basePath, callback)
+                sendFileInner(out, file, basePath, callback) { size ->
+                    sentCount += 1
+                    sentBytes += size
+                }
                 // 结束码
                 out.write(SyncConstants.CODE_FINISHED)
                 out.flush()
             }
         }
+        LoggerX.i<PfdFileSender>("[SYNC] 文件发送完成: count=$sentCount bytes=$sentBytes")
     }
 
-    private fun sendFileInner(out: OutputStream, file: File, basePath: Path, callback: ((File) -> Unit)?) {
+    private fun sendFileInner(
+        out: OutputStream,
+        file: File,
+        basePath: Path,
+        callback: ((File) -> Unit)?,
+        onSent: (Long) -> Unit
+    ) {
         if (!file.exists()) return
         if (file.isDirectory) {
             file.listFiles()?.forEach {
-                sendFileInner(out, it, basePath, callback)
+                sendFileInner(out, it, basePath, callback, onSent)
             }
         } else {
             val size = file.length()
@@ -67,6 +81,8 @@ object PfdFileSender {
             }
             out.flush()
 
+            LoggerX.d<PfdFileSender>("[SYNC] 发送文件: relative=${basePath.relativize(file.toPath())} size=$size")
+            onSent(size)
             callback?.invoke(file)
         }
     }

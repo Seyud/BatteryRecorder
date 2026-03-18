@@ -1,5 +1,6 @@
 package yangfentuozi.batteryrecorder.data.history
 
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -40,6 +41,7 @@ object BatteryPredictor {
     ): PredictionResult {
         val insufficientReason = getInsufficientReason(sceneStats, upstreamInsufficientReason)
         if (insufficientReason != null) {
+            LoggerX.w<BatteryPredictor>("[预测] 首页预测数据不足: reason=$insufficientReason")
             return PredictionResult(
                 screenOffCurrentHours = null,
                 screenOffFullHours = null,
@@ -64,6 +66,7 @@ object BatteryPredictor {
         // k 合理性校验：反推整体掉电速率，超过阈值视为 SOC 跳变等异常
         val overallDrainPerHour = validSceneStats.rawTotalSocDrop / validSceneStats.totalDurationMs * 3_600_000.0
         if (overallDrainPerHour > MAX_DRAIN_RATE_PER_HOUR) {
+            LoggerX.w<BatteryPredictor>("[预测] 首页预测异常掉电: drainPerHour=$overallDrainPerHour")
             return PredictionResult(
                 screenOffCurrentHours = null,
                 screenOffFullHours = null,
@@ -100,7 +103,7 @@ object BatteryPredictor {
             fullRemaining / (drainPerMs * 3_600_000.0)
         } else null
 
-        return PredictionResult(
+        val result = PredictionResult(
             screenOffCurrentHours = screenOffCurrentHours,
             screenOffFullHours = screenOffFullHours,
             screenOnDailyCurrentHours = screenOnCurrentHours,
@@ -109,6 +112,10 @@ object BatteryPredictor {
             confidenceScore = confidenceScore,
             insufficientReason = null
         )
+        LoggerX.i<BatteryPredictor>(
+            "[预测] 首页预测完成: currentSoc=$currentSoc confidence=$confidenceScore offCurrent=${result.screenOffCurrentHours} onCurrent=${result.screenOnDailyCurrentHours}"
+        )
+        return result
     }
 
     private fun getInsufficientReason(
@@ -153,6 +160,10 @@ object BatteryPredictor {
 
         val currentRemaining = (currentSoc - SOC_CUTOFF).coerceAtLeast(0.0)
         val drainPerMs = entry.effectiveSocDrop / entry.effectiveForegroundMs
-        return currentRemaining / (drainPerMs * 3_600_000.0)
+        val hours = currentRemaining / (drainPerMs * 3_600_000.0)
+        LoggerX.d<BatteryPredictor>(
+            "[预测] 应用预测完成: package=${entry.packageName} currentSoc=$currentSoc hours=$hours"
+        )
+        return hours
     }
 }

@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.data.history
 
 import android.content.Context
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.File
 import kotlin.math.sqrt
 
@@ -81,6 +82,7 @@ object SceneStatsComputer {
             recentFileCount = request.sceneStatsRecentFileCount
         )
         if (files.isEmpty()) {
+            LoggerX.d<SceneStatsComputer>("[预测] 场景统计无放电文件")
             return SceneComputeResult(
                 displayStats = null,
                 predictionStats = null,
@@ -97,6 +99,9 @@ object SceneStatsComputer {
             currentDischargeFileName = currentDischargeFileName
         )
         val cacheFile = getSceneStatsCacheFile(context.cacheDir, cacheKey)
+        LoggerX.d<SceneStatsComputer>(
+            "[预测] 计算场景统计: fileCount=${files.size} cache=${cacheFile.name} current=$currentDischargeFileName"
+        )
         if (cacheFile.exists()) {
             val cacheLines = cacheFile.readText().trim().lines()
             val displayStats = cacheLines.getOrNull(0)?.let { SceneStats.fromString(it) }
@@ -105,8 +110,10 @@ object SceneStatsComputer {
                 val cachedMedianK = cacheLines.getOrNull(2)?.toDoubleOrNull()
                 val cachedKCV = cacheLines.getOrNull(3)?.toDoubleOrNull()
                 val cachedKEffN = cacheLines.getOrNull(4)?.toDoubleOrNull() ?: 0.0
+                LoggerX.d<SceneStatsComputer>("[预测] 命中场景统计缓存: ${cacheFile.name}")
                 return SceneComputeResult(displayStats, predictionStats, cachedMedianK, cachedKCV, cachedKEffN)
             }
+            LoggerX.w<SceneStatsComputer>("[预测] 场景统计缓存损坏，删除重算: ${cacheFile.absolutePath}")
             cacheFile.delete()
         }
 
@@ -196,6 +203,7 @@ object SceneStatsComputer {
         }
 
         if (usedFileCount <= 0) {
+            LoggerX.w<SceneStatsComputer>("[预测] 场景统计无有效文件，准备返回不足原因")
             return SceneComputeResult(
                 displayStats = null,
                 predictionStats = null,
@@ -221,6 +229,7 @@ object SceneStatsComputer {
 
         val totalMs = offTime + dailyTime + gameTime
         if (totalMs <= 0L) {
+            LoggerX.w<SceneStatsComputer>("[预测] 场景统计总时长无效: off=$offTime daily=$dailyTime game=$gameTime")
             return SceneComputeResult(
                 displayStats = null,
                 predictionStats = null,
@@ -268,6 +277,9 @@ object SceneStatsComputer {
         cacheFile.writeText(
             displayStats.toString() + "\n" + predictionStats.toString() + "\n" +
                     (medianK ?: "") + "\n" + (kCV ?: "") + "\n" + kEffectiveN
+        )
+        LoggerX.i<SceneStatsComputer>(
+            "[预测] 场景统计完成: usedFiles=$usedFileCount totalMs=$totalMs medianK=$medianK kCV=$kCV kEffectiveN=$kEffectiveN"
         )
 
         return SceneComputeResult(

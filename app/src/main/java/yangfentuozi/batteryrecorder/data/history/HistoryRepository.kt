@@ -91,6 +91,9 @@ object HistoryRepository {
         needCaching: Boolean
     ): HistoryRecord? {
         val cacheFile = getPowerStatsCacheFile(context.cacheDir, file.name)
+        LoggerX.d<HistoryRepository>(
+            "[历史] 加载记录统计: file=${file.name} needCaching=$needCaching cache=${cacheFile.name}"
+        )
         val stats = runCatching {
             RecordsStats.getCachedStats(
                 cacheFile = cacheFile,
@@ -98,7 +101,7 @@ object HistoryRepository {
                 needCaching = needCaching
             )
         }.onFailure { error ->
-            LoggerX.e<HistoryRepository>("加载记录统计失败: ${file.absolutePath}")
+            LoggerX.e<HistoryRepository>("[历史] 加载记录统计失败: ${file.absolutePath}", tr = error)
         }.getOrNull() ?: return null
 
         return buildHistoryRecord(file, stats)
@@ -106,14 +109,20 @@ object HistoryRepository {
 
     /** 仅列出文件，按记录起始时间倒序，不加载 stats */
     fun listRecordFiles(context: Context, type: BatteryStatus): List<File> {
-        return listSortedRecordFiles(dataDir(context, type))
+        val files = listSortedRecordFiles(dataDir(context, type))
+        LoggerX.d<HistoryRepository>("[历史] 列出记录文件: type=$type count=${files.size}")
+        return files
     }
 
     /** 加载指定类型的所有记录，按记录起始时间倒序 */
     fun loadRecords(context: Context, type: BatteryStatus): List<HistoryRecord> {
         val files = listSortedRecordFiles(dataDir(context, type))
-        if (files.isEmpty()) return emptyList()
+        if (files.isEmpty()) {
+            LoggerX.d<HistoryRepository>("[历史] 无记录文件: type=$type")
+            return emptyList()
+        }
         val latestFile = files.firstOrNull()
+        LoggerX.d<HistoryRepository>("[历史] 加载记录列表: type=$type count=${files.size} latest=${latestFile?.name}")
 
         return files.mapNotNull { loadStats(context, it, it != latestFile) }
     }
@@ -164,6 +173,7 @@ object HistoryRepository {
         val serviceFile = runCatching { service.currRecordsFile }
             .getOrNull()
             ?.toFile(context)
+        LoggerX.d<HistoryRepository>("[历史] 加载当前记录: serviceFile=${serviceFile?.name}")
         return serviceFile?.let { file ->
             loadStats(context, file, false)
         }
@@ -179,14 +189,23 @@ object HistoryRepository {
         val files = listSortedRecordFiles(dataDir)
 
         val recordCount = files.size
-        if (recordCount == 0) return null
+        if (recordCount == 0) {
+            LoggerX.d<HistoryRepository>("[历史] 汇总为空: type=$type")
+            return null
+        }
 
         val latestFile = files.first()
         val sampleFiles = files.take(avgPowerLimit.coerceAtLeast(0))
-        if (sampleFiles.isEmpty()) return null
+        if (sampleFiles.isEmpty()) {
+            LoggerX.w<HistoryRepository>("[历史] 汇总样本为空: type=$type avgPowerLimit=$avgPowerLimit")
+            return null
+        }
 
         val records = sampleFiles.mapNotNull { loadStats(context, it, it != latestFile) }
-        if (records.isEmpty()) return null
+        if (records.isEmpty()) {
+            LoggerX.w<HistoryRepository>("[历史] 汇总记录加载失败: type=$type sampleCount=${sampleFiles.size}")
+            return null
+        }
 
         var totalDurationMs = 0L
         var weightedPowerSum = 0.0
@@ -208,7 +227,7 @@ object HistoryRepository {
             records.map { it.stats.averagePower }.average()
         }
 
-        return HistorySummary(
+        val summary = HistorySummary(
             type = type,
             recordCount = recordCount,
             averagePower = averagePower,
@@ -216,6 +235,10 @@ object HistoryRepository {
             totalScreenOnMs = totalScreenOnMs,
             totalScreenOffMs = totalScreenOffMs
         )
+        LoggerX.d<HistoryRepository>(
+            "[历史] 汇总完成: type=$type recordCount=$recordCount durationMs=$totalDurationMs avgPower=$averagePower"
+        )
+        return summary
     }
 
     /** 删除记录及其缓存文件 */
@@ -224,8 +247,10 @@ object HistoryRepository {
         if (runCatching { recordsFile.toFile(context)!!.delete() }.getOrDefault(false)) {
             // 同步删除缓存文件
             runCatching { getPowerStatsCacheFile(context.cacheDir, recordsFile.name).delete() }
+            LoggerX.i<HistoryRepository>("[历史] 删除记录成功: ${recordsFile.name}")
             return true
         }
+        LoggerX.w<HistoryRepository>("[历史] 删除记录失败: ${recordsFile.name}")
         return false
     }
 
@@ -247,6 +272,7 @@ object HistoryRepository {
                 input.copyTo(output)
             }
         }
+        LoggerX.i<HistoryRepository>("[历史] 导出记录成功: source=${recordsFile.name} destination=$destinationUri")
     }
 
     /** 导出当前列表内的所有记录到 ZIP */
@@ -272,5 +298,6 @@ object HistoryRepository {
                 }
             }
         }
+        LoggerX.i<HistoryRepository>("[历史] 导出记录压缩包成功: count=${recordsFiles.size} destination=$destinationUri")
     }
 }
