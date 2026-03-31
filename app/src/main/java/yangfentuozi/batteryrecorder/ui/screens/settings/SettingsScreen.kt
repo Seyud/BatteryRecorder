@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import yangfentuozi.batteryrecorder.ipc.Service
+import yangfentuozi.batteryrecorder.ui.batteryRecorderScaffoldInsets
+import yangfentuozi.batteryrecorder.ui.bottomWithNavigationBar
 import yangfentuozi.batteryrecorder.ui.components.settings.sections.CalibrationSection
 import yangfentuozi.batteryrecorder.ui.components.settings.sections.LogSection
 import yangfentuozi.batteryrecorder.ui.components.settings.sections.PredictionSection
@@ -112,6 +114,7 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = batteryRecorderScaffoldInsets(),
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text("设置") },
@@ -128,7 +131,10 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+            contentPadding = PaddingValues(
+                top = 8.dp,
+                bottom = padding.bottomWithNavigationBar(16.dp)
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {

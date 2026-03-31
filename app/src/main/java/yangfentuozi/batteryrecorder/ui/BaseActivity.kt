@@ -14,5 +14,7 @@ open class BaseActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
         )
+        // 关闭三键导航下的强制对比度蒙层，确保底部真正透明并与手势导航表现一致。
+        window.isNavigationBarContrastEnforced = false
     }
 }

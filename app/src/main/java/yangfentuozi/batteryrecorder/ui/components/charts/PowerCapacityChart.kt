@@ -20,9 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -302,6 +303,7 @@ private data class PreparedChartState(
 )
 
 /** 功率-电量图表（当前仅服务记录详情页单一场景）。 */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PowerCapacityChart(
     points: List<RecordDetailChartPoint>,
@@ -423,7 +425,7 @@ fun PowerCapacityChart(
                     .onSizeChanged { canvasSizeState.value = it },
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                LoadingIndicator()
             }
             return
         }

@@ -207,7 +207,7 @@ private fun PredictionGameFilterDialog(
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainer
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "排除高负载 App",
                     style = MaterialTheme.typography.headlineSmall

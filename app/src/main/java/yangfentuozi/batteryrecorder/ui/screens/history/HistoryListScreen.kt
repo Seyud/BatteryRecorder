@@ -46,7 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
+import yangfentuozi.batteryrecorder.ui.batteryRecorderScaffoldInsets
 import yangfentuozi.batteryrecorder.ui.components.global.SwipeRevealRow
+import yangfentuozi.batteryrecorder.ui.navigationBarBottomPadding
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.HistoryViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
@@ -57,6 +59,7 @@ import yangfentuozi.batteryrecorder.utils.formatPower
 private const val NEAR_END_PRELOAD_THRESHOLD = 5
 private val CHARGE_CAPACITY_CHANGE_FILTERS = listOf(20, 40, 70)
 private val ChargeHistoryFilterChipShape = AppShape.medium
+private val ChargeHistoryFilterBarContentPaddingBottom = 16.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,6 +141,7 @@ fun HistoryListScreen(
     }
 
     Scaffold(
+        contentWindowInsets = batteryRecorderScaffoldInsets(),
         topBar = {
             TopAppBar(
                 title = { Text(title) },
@@ -176,7 +180,7 @@ fun HistoryListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(24.dp)
+                    .padding(16.dp)
             ) {
                 Text(
                     text = emptyText,
@@ -190,7 +194,14 @@ fun HistoryListScreen(
                     .fillMaxSize()
                     .padding(paddingValues),
                 state = listState,
-                contentPadding = PaddingValues(vertical = 8.dp),
+                contentPadding = PaddingValues(
+                    top = 8.dp,
+                    bottom = if (batteryStatus == BatteryStatus.Charging) {
+                        8.dp
+                    } else {
+                        navigationBarBottomPadding() + 8.dp
+                    }
+                ),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 itemsIndexed(records, key = { _, record -> record.name }) { index, record ->
@@ -318,7 +329,12 @@ private fun ChargeHistoryFilterBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(
+                    start = 16.dp,
+                    top = 12.dp,
+                    end = 16.dp,
+                    bottom = navigationBarBottomPadding()
+                ),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CHARGE_CAPACITY_CHANGE_FILTERS.forEach { threshold ->

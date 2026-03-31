@@ -41,6 +41,7 @@ import yangfentuozi.batteryrecorder.ipc.Service
 import yangfentuozi.batteryrecorder.server.recorder.IRecordListener
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
+import yangfentuozi.batteryrecorder.ui.batteryRecorderScaffoldInsets
 import yangfentuozi.batteryrecorder.ui.components.global.SplicedColumnGroup
 import yangfentuozi.batteryrecorder.ui.components.home.BatteryRecorderTopAppBar
 import yangfentuozi.batteryrecorder.ui.components.home.CurrentRecordCard
@@ -51,6 +52,7 @@ import yangfentuozi.batteryrecorder.ui.components.home.StatsCard
 import yangfentuozi.batteryrecorder.ui.dialog.home.AboutDialog
 import yangfentuozi.batteryrecorder.ui.dialog.home.AdbGuideDialog
 import yangfentuozi.batteryrecorder.ui.model.LiveRecordSample
+import yangfentuozi.batteryrecorder.ui.navigationBarBottomPadding
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.MainViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
@@ -203,6 +205,7 @@ fun HomeScreen(
 
     Surface {
         Scaffold(
+            contentWindowInsets = batteryRecorderScaffoldInsets(),
             topBar = {
                 BatteryRecorderTopAppBar(
                     onSettingsClick = onNavigateToSettings,
@@ -231,7 +234,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(vertical = 8.dp)
+                    .padding(top = 8.dp, bottom = navigationBarBottomPadding() + 8.dp)
             ) {
                 SplicedColumnGroup(
                     modifier = Modifier.padding(horizontal = 16.dp)

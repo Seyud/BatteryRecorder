@@ -31,10 +31,11 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Outbox
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
@@ -69,12 +70,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
+import yangfentuozi.batteryrecorder.ui.batteryRecorderScaffoldInsets
 import yangfentuozi.batteryrecorder.ui.components.charts.FixedPowerAxisMode
 import yangfentuozi.batteryrecorder.ui.components.charts.PowerCapacityChart
 import yangfentuozi.batteryrecorder.ui.components.charts.PowerCurveMode
 import yangfentuozi.batteryrecorder.ui.components.charts.RecordChartCurveVisibility
 import yangfentuozi.batteryrecorder.ui.components.global.SplicedColumnGroup
 import yangfentuozi.batteryrecorder.ui.dialog.history.ChartGuideDialog
+import yangfentuozi.batteryrecorder.ui.navigationBarBottomPadding
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.HistoryViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.RecordAppDetailUiEntry
@@ -196,6 +199,7 @@ fun RecordDetailScreen(
     }
 
     Scaffold(
+        contentWindowInsets = batteryRecorderScaffoldInsets(),
         topBar = {
             if (!isChartFullscreen) {
                 TopAppBar(
@@ -365,73 +369,89 @@ fun RecordDetailScreen(
             calibrationValue = calibrationValue
         )
 
-        Column(
+        // 外层 Box 负责铺满沉浸背景，内层滚动内容只按实际高度展开，
+        // 避免 fillMaxSize 的滚动列把底部手势区误表现成“常驻大空白”。
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 0.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (detailState != null && stats != null && durationMs != null) {
-                SplicedColumnGroup(title = typeLabel) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            InfoRow(
-                                "时间",
-                                "${formatDateTime(stats.startTime)} 到 ${formatDateTime(stats.endTime)} (${
-                                    formatDurationHours(durationMs)
-                                })"
-                            )
-                            if (
-                                detailState.type == BatteryStatus.Discharging &&
-                                recordDetailPowerUiState != null
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = navigationBarBottomPadding() + 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (detailState != null && stats != null && durationMs != null) {
+                    SplicedColumnGroup(title = typeLabel) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
                             ) {
-                                RecordDetailPowerSection(
-                                    powerUiState = recordDetailPowerUiState!!,
-                                    dualCellEnabled = dualCellEnabled,
-                                    calibrationValue = calibrationValue
-                                )
-                            } else {
                                 InfoRow(
-                                    "平均功率",
-                                    formatPower(stats.averagePower, dualCellEnabled, calibrationValue)
+                                    "时间",
+                                    "${formatDateTime(stats.startTime)} 到 ${formatDateTime(stats.endTime)} (${
+                                        formatDurationHours(durationMs)
+                                    })"
                                 )
-                            }
-                            if (detailState.type == BatteryStatus.Charging && capacityChange != null) {
-                                InfoRow("电量变化", "${capacityChange}%")
-                            }
-                            InfoRow("亮屏", formatDurationHours(stats.screenOnTimeMs))
-                            InfoRow("息屏", formatDurationHours(stats.screenOffTimeMs))
+                                if (
+                                    detailState.type == BatteryStatus.Discharging &&
+                                    recordDetailPowerUiState != null
+                                ) {
+                                    RecordDetailPowerSection(
+                                        powerUiState = recordDetailPowerUiState!!,
+                                        dualCellEnabled = dualCellEnabled,
+                                        calibrationValue = calibrationValue
+                                    )
+                                } else {
+                                    InfoRow(
+                                        "平均功率",
+                                        formatPower(
+                                            stats.averagePower,
+                                            dualCellEnabled,
+                                            calibrationValue
+                                        )
+                                    )
+                                }
+                                if (detailState.type == BatteryStatus.Charging && capacityChange != null) {
+                                    InfoRow("电量变化", "${capacityChange}%")
+                                }
+                                InfoRow("亮屏", formatDurationHours(stats.screenOnTimeMs))
+                                InfoRow("息屏", formatDurationHours(stats.screenOffTimeMs))
 //                        InfoRow("记录ID", detailState.name.dropLast(4))
+                            }
                         }
                     }
                 }
-            }
 
-            SplicedColumnGroup(title = "功耗/电量曲线") {
-                item {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        chartBlock(Modifier.fillMaxWidth(), false)
+                SplicedColumnGroup(title = "功耗/电量曲线") {
+                    item {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            chartBlock(Modifier.fillMaxWidth(), false)
+                        }
                     }
                 }
-            }
 
-            if (
-                detailState?.type == BatteryStatus.Discharging &&
-                recordAppDetailEntries.isNotEmpty()
-            ) {
-                SplicedColumnGroup(title = "应用详情") {
-                    recordAppDetailEntries.forEach { entry ->
-                        item(key = entry.key) {
-                            RecordAppDetailRow(
-                                entry = entry,
-                                displayConfig = appDetailDisplayConfig
-                            )
+                if (
+                    detailState?.type == BatteryStatus.Discharging &&
+                    recordAppDetailEntries.isNotEmpty()
+                ) {
+                    SplicedColumnGroup(title = "应用详情") {
+                        recordAppDetailEntries.forEach { entry ->
+                            item(key = entry.key) {
+                                RecordAppDetailRow(
+                                    entry = entry,
+                                    displayConfig = appDetailDisplayConfig
+                                )
+                            }
                         }
                     }
                 }
@@ -469,6 +489,7 @@ fun RecordDetailScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RecordDetailChartLoading(
     modifier: Modifier,
@@ -480,7 +501,7 @@ private fun RecordDetailChartLoading(
             .height(chartHeight),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator()
+        LoadingIndicator()
     }
 }
 

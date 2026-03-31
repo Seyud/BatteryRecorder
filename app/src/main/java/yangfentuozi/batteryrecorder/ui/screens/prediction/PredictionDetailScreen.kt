@@ -37,6 +37,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import yangfentuozi.batteryrecorder.ui.batteryRecorderScaffoldInsets
+import yangfentuozi.batteryrecorder.ui.bottomWithNavigationBar
 import yangfentuozi.batteryrecorder.ui.components.global.LazySplicedColumnGroup
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.PredictionDetailUiEntry
@@ -66,6 +68,7 @@ fun PredictionDetailScreen(
     }
 
     Scaffold(
+        contentWindowInsets = batteryRecorderScaffoldInsets(),
         topBar = {
             TopAppBar(
                 title = { Text("应用预测") }
@@ -106,7 +109,10 @@ fun PredictionDetailScreen(
                         .padding(paddingValues)
                         .padding(horizontal = 16.dp),
                     key = { entry -> entry.packageName },
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(
+                        top = 8.dp,
+                        bottom = paddingValues.bottomWithNavigationBar(8.dp)
+                    )
                 ) {
                     PredictionDetailRow(
                         entry = it,
@@ -129,7 +135,12 @@ private fun PredictionDetailMessage(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .padding(24.dp)
+            .padding(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = paddingValues.bottomWithNavigationBar(16.dp)
+            )
     ) {
         Text(
             text = message,
