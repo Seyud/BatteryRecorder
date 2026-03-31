@@ -4,7 +4,7 @@
 
 - 这是**仓库工作说明**，不是面向最终用户的使用文档
 - 目标是让代理快速理解当前项目结构、关键链路与修改约束
-- 当项目新增关键模块、入口、缓存格式或数据链路时，必须同步更新本文件与 `CLAUDE.md`
+- 当项目新增关键模块、入口、缓存格式或数据链路时，必须同步更新本文件
 - 文档应优先记录**真实现状**；若代码实现与理想约束不一致，必须如实写明，不得继续保留过时描述
 
 ## 项目概述
@@ -106,6 +106,14 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - 首页的“续航预测卡片”和“场景统计卡片”都定义在 `ui/components/home/PredictionCard.kt`
 - 首页统计刷新参数统一来自 `SettingsViewModel.statisticsSettings`，服务端采样间隔单独来自 `SettingsViewModel.recordIntervalMs`
 - 首页支持 Root 启动卡片、ADB 引导、日志导出、关于弹窗、首次文档引导与启动更新检查
+
+### UI 沉浸与 Insets 链路
+
+- `BaseActivity` 统一调用 `enableEdgeToEdge(...)`，并关闭 `window.isNavigationBarContrastEnforced`
+- 页面级 `Scaffold` 统一通过 `ui/EdgeToEdgeInsets.kt` 中的 `batteryRecorderScaffoldInsets()` 只消费顶部与水平安全区
+- 底部导航手势区不再交给 `Scaffold` 一刀切处理，而是由页面内容层按需使用 `navigationBarBottomPadding()` 单独追加
+- 当前首页、设置页、历史列表页、记录详情页、预测详情页都已接入上述规则
+- `RecordDetailScreen` 的沉浸结构与其他页面不同：外层 `Box` 负责铺满沉浸背景，内层滚动 `Column` 只按内容高度展开，避免 `fillMaxSize()` 的滚动列把手势区表现成常驻大空白
 
 ### 记录详情链路
 
@@ -235,6 +243,7 @@ app/src/main/java/yangfentuozi/batteryrecorder/
 │   ├── BatteryRecorderApp.kt
 │   ├── MainActivity.kt
 │   ├── BaseActivity.kt
+│   ├── EdgeToEdgeInsets.kt
 │   ├── navigation/
 │   ├── screens/
 │   │   ├── home/HomeScreen.kt
@@ -338,6 +347,8 @@ shared/src/main/
 | 功能                        | 路径                                                                                                 |
 |---------------------------|----------------------------------------------------------------------------------------------------|
 | App 入口 Composable         | `app/.../ui/BatteryRecorderApp.kt`                                                                 |
+| Activity Edge-to-Edge 入口  | `app/.../ui/BaseActivity.kt`                                                                       |
+| 页面级 Insets 公共方法           | `app/.../ui/EdgeToEdgeInsets.kt`                                                                   |
 | 导航路由                      | `app/.../ui/navigation/NavRoute.kt`                                                                |
 | 导航宿主与历史页共享 ViewModel      | `app/.../ui/navigation/BatteryRecorderNavHost.kt`                                                  |
 | 首页                        | `app/.../ui/screens/home/HomeScreen.kt`                                                            |
@@ -399,6 +410,9 @@ shared/src/main/
 - 详情页图表状态统一收敛到 `RecordDetailChartUiState`
 - 图表本地展示偏好不写入业务配置
 - 应用图标请求只基于当前视口包名集合触发
+- 页面级沉浸规则是：`Scaffold` 只吃顶部/水平安全区，底部手势区由内容层自行处理
+- 页面外层 margin 当前统一按 16.dp 收敛；若看到 24.dp，需要先确认那是不是组件内部排版或图表绘制留白，而不是页面 margin
+- 充电历史页底部筛选栏需要单独处理导航栏底部 inset，不能直接套用普通滚动页的底部 padding 逻辑
 - ROOT 启动统一经过 `RootServerStarter.start(context, source)`
 - 当前设置系统按 `AppSettings`、`StatisticsSettings`、`ServerSettings` 分层；`SharedSettings.kt` 负责三类设置的 SharedPreferences 读写，以及 `logLevel` 编解码
 - `ConfigUtil.kt` 只负责 root/shell 场景下的设置来源适配；root 直接解析 SharedPreferences XML，shell 通过 `ConfigProvider` 读取 `ServerSettings`
