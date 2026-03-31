@@ -19,10 +19,10 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
--dontwarn androidx.window.extensions.area.ExtensionWindowAreaPresentation
--dontwarn androidx.window.extensions.core.util.function.Consumer
--dontwarn androidx.window.extensions.core.util.function.Function
--dontwarn androidx.window.extensions.core.util.function.Predicate
+# androidx.window 会通过反射探测设备厂商扩展实现；这些类在编译期并不会随 APK 一起打包。
+# R8 在 release shrink 时会把这类可选厂商扩展当成缺失类，需要显式忽略 warning。
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**
 
 # Compose rememberSaveable 会通过 ParcelableSnapshotMutable*State 恢复状态。
 # Release 混淆后若 CREATOR 被裁剪，进程在后台被杀后恢复会抛 BadParcelableException。
