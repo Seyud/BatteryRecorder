@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.22.1)
 project("batteryrecorder")
 
 add_library(batteryrecorder SHARED
-        power_reader.c
+        jni_main.cpp
+        power_reader.cpp
         dump_parser.cpp
 )
 

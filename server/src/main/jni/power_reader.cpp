@@ -3,6 +3,8 @@
 #include <string.h>
 #include <android/log.h>
 
+#include "power_reader.h"
+
 #define TAG "PowerReaderJNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
@@ -157,41 +159,26 @@ static jint native_get_temp(JNIEnv *env __attribute__((unused)), jclass clazz __
     return read_int(g_cache.temp_fp);
 }
 
-static int register_native_methods(JNIEnv *env) {
-    const char *class_name = "yangfentuozi/batteryrecorder/server/recorder/sampler/SysfsSampler";
-    jclass clazz = (*env)->FindClass(env, class_name);
+int register_sysfs_native_methods(JNIEnv* env) {
+    const char* class_name = "yangfentuozi/batteryrecorder/server/recorder/sampler/SysfsSampler";
+    jclass clazz = env->FindClass(class_name);
     if (!clazz) {
         LOGE("%s: Failed to find class %s", __func__, class_name);
         return JNI_FALSE;
     }
-
     static const JNINativeMethod methods[] = {
-            {"nativeInit", "()I", (void *) native_init},
-            {"nativeGetVoltage", "()J", (void *) native_get_voltage},
-            {"nativeGetCurrent", "()J", (void *) native_get_current},
-            {"nativeGetCapacity", "()I", (void *) native_get_capacity},
-            {"nativeGetStatus", "()I", (void *) native_get_status},
-            {"nativeGetTemp", "()I", (void *) native_get_temp},
+            {"nativeInit", "()I", reinterpret_cast<void*>(native_init)},
+            {"nativeGetVoltage", "()J", reinterpret_cast<void*>(native_get_voltage)},
+            {"nativeGetCurrent", "()J", reinterpret_cast<void*>(native_get_current)},
+            {"nativeGetCapacity", "()I", reinterpret_cast<void*>(native_get_capacity)},
+            {"nativeGetStatus", "()I", reinterpret_cast<void*>(native_get_status)},
+            {"nativeGetTemp", "()I", reinterpret_cast<void*>(native_get_temp)},
     };
-
-    if ((*env)->RegisterNatives(env, clazz, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
+    if (env->RegisterNatives(clazz, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
         LOGE("%s: RegisterNatives failed for %s", __func__, class_name);
+        env->DeleteLocalRef(clazz);
         return JNI_FALSE;
     }
-
+    env->DeleteLocalRef(clazz);
     return JNI_TRUE;
-}
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved __attribute__((unused))) {
-    JNIEnv *env = NULL;
-    if ((*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6) != JNI_OK) {
-        LOGE("%s: GetEnv failed", __func__);
-        return JNI_ERR;
-    }
-
-    if (!register_native_methods(env)) {
-        return JNI_ERR;
-    }
-
-    return JNI_VERSION_1_6;
 }

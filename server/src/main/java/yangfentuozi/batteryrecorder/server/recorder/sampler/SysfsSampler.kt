@@ -38,6 +38,7 @@ object SysfsSampler: Sampler {
     fun init(appInfo: ApplicationInfo): Boolean {
         try {
             val libraryTmpPath = "/data/local/tmp/libbatteryrecorder.so"
+            runCatching { Os.remove(libraryTmpPath) }
             val apk = ZipFile(appInfo.sourceDir)
             apk.getInputStream(apk.getEntry("lib/${Build.SUPPORTED_ABIS[0]}/libbatteryrecorder.so"))
                 .copyTo(out = FileOutputStream(libraryTmpPath, false))
