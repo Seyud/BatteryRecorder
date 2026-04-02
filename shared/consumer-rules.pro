@@ -1,1 +1,2 @@
--keep class yangfentuozi.batteryrecorder.shared.config.Config { *; }
+-keep class yangfentuozi.batteryrecorder.shared.data.** { *; }
+-keep class yangfentuozi.batteryrecorder.shared.config.dataclass.** { *; }
