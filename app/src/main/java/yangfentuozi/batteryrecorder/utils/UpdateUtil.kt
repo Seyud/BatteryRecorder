@@ -63,9 +63,9 @@ object UpdateUtils {
                 }
 
                 UpdateChannel.Prerelease -> {
-                    LoggerX.v(TAG, "[更新] 准备请求 GitHub 预发布 release 列表")
+                    LoggerX.v(TAG, "[更新] 准备请求 GitHub 发布列表（预发布通道）")
                     val releases = requestJsonArray(GITHUB_RELEASES_API_URL)
-                    findLatestPrerelease(releases)?.let(::parseAppUpdate)
+                    findLatestReleaseForPrereleaseChannel(releases)?.let(::parseAppUpdate)
                 }
             }
         }.onFailure { error ->
@@ -113,18 +113,17 @@ object UpdateUtils {
             setRequestProperty("User-Agent", "BatteryRecorder-App")
         }
 
-    private fun findLatestPrerelease(releases: JSONArray): JSONObject? {
+    private fun findLatestReleaseForPrereleaseChannel(releases: JSONArray): JSONObject? {
         if (releases.length() == 0) {
-            LoggerX.w(TAG, "[更新] GitHub 预发布 release 列表为空")
+            LoggerX.w(TAG, "[更新] GitHub 发布列表为空")
             return null
         }
         for (index in 0 until releases.length()) {
             val release = releases.optJSONObject(index) ?: continue
             if (release.optBoolean("draft", false)) continue
-            if (!release.optBoolean("prerelease", false)) continue
             return release
         }
-        LoggerX.i(TAG, "[更新] 当前 release 列表中没有可用预发布版本")
+        LoggerX.i(TAG, "[更新] 当前发布列表中没有可用的非 draft 版本")
         return null
     }
 

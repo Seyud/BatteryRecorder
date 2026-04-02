@@ -4,7 +4,7 @@ package yangfentuozi.batteryrecorder.shared.config.dataclass
  * 更新检测通道。
  *
  * Stable 只跟踪正式版 release；
- * Prerelease 只跟踪 GitHub 标记为 prerelease 的预发布版本。
+ * Prerelease 跟踪最新非 draft 发布，允许命中预发布与正式版。
  *
  * @param persistedValue 持久化到 SharedPreferences 的稳定整数值。
  */

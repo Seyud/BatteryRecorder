@@ -106,7 +106,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - 首页的“续航预测卡片”和“场景统计卡片”都定义在 `ui/components/home/PredictionCard.kt`
 - 首页统计刷新参数统一来自 `SettingsViewModel.statisticsSettings`，服务端采样间隔单独来自 `SettingsViewModel.recordIntervalMs`
 - 首页支持 Root 启动卡片、ADB 引导、日志导出、关于弹窗、首次文档引导与启动更新检查
-- 启动更新检查由 `BatteryRecorderApp` 直接触发；稳定版通道走 GitHub `releases/latest`，预发布通道走 `releases` 列表并筛选 `prerelease=true`
+- 启动更新检查由 `BatteryRecorderApp` 直接触发；稳定版通道走 GitHub `releases/latest`，预发布通道走 `releases` 列表并取最新非 draft 发布，因此向下兼容稳定版
 - 更新弹窗由 `ui/dialog/home/UpdateDialog.kt` 渲染，版本信息会附带当前通道标识
 
 ### UI 沉浸与 Insets 链路
