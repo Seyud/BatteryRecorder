@@ -14,6 +14,7 @@ import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -69,6 +70,11 @@ object HistoryRepository {
             ?.map { it.first }
             ?.toList()
             ?: emptyList()
+
+    private data class ImportedRecordEntry(
+        val name: String,
+        val stagedFile: File
+    )
 
     fun RecordsFile.toFile(context: Context): File? {
         val dataDir = dataDir(context, type)
@@ -344,5 +350,108 @@ object HistoryRepository {
             }
         }
         LoggerX.i(TAG, "[历史] 导出记录压缩包成功: count=${recordsFiles.size} destination=$destinationUri")
+    }
+
+    /**
+     * 从用户选择的 ZIP 导入当前类型的历史记录。
+     *
+     * @param context 应用上下文。
+     * @param type 目标历史类型；决定导入落盘目录。
+     * @param sourceUri 用户选择的 ZIP 文档 Uri。
+     * @return 返回成功导入的记录数；任一条目不符合一键导出格式时直接抛错，不执行部分导入。
+     */
+    @Throws(IOException::class)
+    fun importRecordsZip(
+        context: Context,
+        type: BatteryStatus,
+        sourceUri: Uri
+    ): Int {
+        val inputStream = context.contentResolver.openInputStream(sourceUri)
+            ?: throw IOException("Failed to open source: $sourceUri")
+        val targetDir = dataDir(context, type)
+        val stagingDir = File(
+            context.cacheDir,
+            "history-import-${type.dataDirName}-${System.currentTimeMillis()}"
+        )
+        if (!stagingDir.exists() && !stagingDir.mkdirs()) {
+            throw IOException("Failed to create staging dir: ${stagingDir.absolutePath}")
+        }
+
+        try {
+            val stagedEntries = inputStream.use { rawInput ->
+                ZipInputStream(rawInput.buffered()).use { zipInput ->
+                    extractImportEntries(zipInput, stagingDir)
+                }
+            }
+            if (stagedEntries.isEmpty()) {
+                throw IOException("ZIP 中没有可导入的记录文件")
+            }
+            stagedEntries.forEach { entry ->
+                val destinationFile = File(targetDir, entry.name)
+                entry.stagedFile.copyTo(destinationFile, overwrite = true)
+                getPowerStatsCacheFile(context.cacheDir, entry.name).delete()
+            }
+            LoggerX.i(TAG, "[历史] 导入记录压缩包成功: type=${type.dataDirName} count=${stagedEntries.size} source=$sourceUri")
+            return stagedEntries.size
+        } finally {
+            stagingDir.deleteRecursively()
+        }
+    }
+
+    private fun extractImportEntries(
+        zipInput: ZipInputStream,
+        stagingDir: File
+    ): List<ImportedRecordEntry> {
+        val importedEntries = mutableListOf<ImportedRecordEntry>()
+        val seenNames = LinkedHashSet<String>()
+
+        var entry = zipInput.nextEntry
+        while (entry != null) {
+            if (entry.isDirectory) {
+                throw IOException("ZIP 包含目录条目，不是一键导出格式: ${entry.name}")
+            }
+            val entryName = validateImportEntryName(entry.name)
+            if (!seenNames.add(entryName)) {
+                throw IOException("ZIP 包含重复记录文件: $entryName")
+            }
+
+            val stagedFile = File(stagingDir, entryName)
+            stagedFile.outputStream().use { output ->
+                zipInput.copyTo(output)
+            }
+            validateImportedRecordFile(stagedFile)
+            importedEntries += ImportedRecordEntry(
+                name = entryName,
+                stagedFile = stagedFile
+            )
+            zipInput.closeEntry()
+            entry = zipInput.nextEntry
+        }
+        return importedEntries
+    }
+
+    private fun validateImportEntryName(entryName: String): String {
+        val normalizedName = entryName.trim()
+        if (normalizedName.isEmpty()) {
+            throw IOException("ZIP 包含空文件名条目")
+        }
+        if (normalizedName.contains('/') || normalizedName.contains('\\')) {
+            throw IOException("ZIP 条目路径非法，不是一键导出格式: $entryName")
+        }
+        if (recordFileTimestampOrNull(File(normalizedName)) == null) {
+            throw IOException("ZIP 条目文件名非法: $entryName")
+        }
+        return normalizedName
+    }
+
+    private fun validateImportedRecordFile(file: File) {
+        var validRecordCount = 0
+        RecordFileParser.forEachValidRecord(file) { _ ->
+            validRecordCount += 1
+        }
+
+        if (validRecordCount == 0) {
+            throw IOException("记录文件没有有效数据: ${file.name}")
+        }
     }
 }
