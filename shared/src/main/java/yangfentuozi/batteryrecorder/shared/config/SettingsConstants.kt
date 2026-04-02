@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.shared.config
 
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
+import yangfentuozi.batteryrecorder.shared.config.dataclass.UpdateChannel
 
 object SettingsConstants {
     const val PREFS_NAME = "app_settings"
@@ -11,6 +12,14 @@ object SettingsConstants {
                 LoggerX.LogLevel.entries.firstOrNull { it.priority == value }
 
             override fun toValue(value: LoggerX.LogLevel): Int = value.priority
+        }
+
+    private val updateChannelConverter =
+        object : EnumConfigConverter<UpdateChannel> {
+            override fun fromValue(value: Int): UpdateChannel? =
+                UpdateChannel.fromPersistedValue(value)
+
+            override fun toValue(value: UpdateChannel): Int = value.persistedValue
         }
 
     // server
@@ -131,29 +140,28 @@ object SettingsConstants {
             def = true
         )
 
-    /** 是否启用“当次记录加权”续航预测 */
-    val predCurrentSessionWeightEnabled =
+    /** 启动更新检测通道 */
+    val updateChannel =
+        EnumConfigItem(
+            key = "update_channel",
+            def = UpdateChannel.Stable,
+            converter = updateChannelConverter
+        )
+
+    /** 是否启用首页/应用预测使用的加权算法 */
+    val predWeightedAlgorithmEnabled =
         BooleanConfigItem(
-            key = "pred_current_session_weight_enabled",
+            key = "pred_weighted_algorithm_enabled",
             def = true
         )
 
-    /** 当次记录加权最大倍率（x100 存储，例如 300 表示 3.00x） */
-    val predCurrentSessionWeightMaxX100 =
+    /** 首页预测里当前文件可影响结果的最大比例（百分比） */
+    val predWeightedAlgorithmAlphaMaxX100 =
         IntConfigItem(
-            key = "pred_current_session_weight_max_x100",
-            def = 300,
-            min = 100,
-            max = 500
-        )
-
-    /** 当次记录加权半衰期（分钟） */
-    val predCurrentSessionWeightHalfLifeMin =
-        LongConfigItem(
-            key = "pred_current_session_weight_half_life_min",
-            def = 30L,
-            min = 5L,
-            max = 60L
+            key = "pred_weighted_algorithm_alpha_max_x100",
+            def = 20,
+            min = 0,
+            max = 80
         )
 
     // common

@@ -16,7 +16,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsItem(
     title: String,
-    summary: String,
+    summary: String? = null,
+    valueText: String? = null,
     onClick: (() -> Unit)?
 ) {
     Row(
@@ -36,8 +37,17 @@ fun SettingsItem(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge
             )
+            if (!summary.isNullOrBlank()) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (!valueText.isNullOrBlank()) {
             Text(
-                text = summary,
+                text = valueText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

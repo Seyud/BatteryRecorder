@@ -21,6 +21,7 @@ import yangfentuozi.batteryrecorder.ui.dialog.home.UpdateDialog
 import yangfentuozi.batteryrecorder.ui.navigation.BatteryRecorderNavHost
 import yangfentuozi.batteryrecorder.ui.viewmodel.MainViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
+import yangfentuozi.batteryrecorder.ui.model.displayName
 import yangfentuozi.batteryrecorder.utils.AppUpdate
 import yangfentuozi.batteryrecorder.utils.UpdateUtils
 
@@ -52,31 +53,40 @@ fun BatteryRecorderApp(
 
     }
 
-    LaunchedEffect(initialized, appSettings.checkUpdateOnStartup, hasCheckedUpdateOnStartup, context) {
+    LaunchedEffect(
+        initialized,
+        appSettings.checkUpdateOnStartup,
+        appSettings.updateChannel,
+        context
+    ) {
         if (!initialized || hasCheckedUpdateOnStartup) return@LaunchedEffect
         hasCheckedUpdateOnStartup = true
         if (!appSettings.checkUpdateOnStartup) {
-            LoggerX.d(TAG, "启动更新检测已关闭，跳过检查")
+            LoggerX.d(TAG, "[更新] 启动更新检测已关闭，跳过检查")
             return@LaunchedEffect
         }
-        LoggerX.d(TAG, "启动更新检测开始，请求最新 release")
+        LoggerX.d(TAG, "[更新] 启动更新检测开始，channel=${appSettings.updateChannel.displayName}")
 
-        val update = UpdateUtils.fetchUpdate() ?: run {
-            LoggerX.w(TAG, "启动更新检测失败，未获取到可用更新信息")
+        val update = UpdateUtils.fetchUpdate(appSettings.updateChannel).getOrElse {
+            LoggerX.w(TAG, "[更新] 启动更新检测失败，未获取到可用更新信息")
             Toast.makeText(context, "检测更新失败", Toast.LENGTH_SHORT).show()
+            return@LaunchedEffect
+        }
+        if (update == null) {
+            LoggerX.i(TAG, "[更新] 启动更新检测完成，当前通道无可用 release，channel=${appSettings.updateChannel.displayName}")
             return@LaunchedEffect
         }
         if (BuildConfig.VERSION_CODE >= update.versionCode) {
             LoggerX.i(
                 TAG,
-                "启动更新检测完成，无需更新，remote=${update.versionCode} local=${BuildConfig.VERSION_CODE}"
+                "[更新] 启动更新检测完成，无需更新，channel=${update.updateChannel.displayName} remote=${update.versionCode} local=${BuildConfig.VERSION_CODE}"
             )
             return@LaunchedEffect
         }
 
         LoggerX.i(
             TAG,
-            "启动更新检测完成，发现新版本，remote=${update.versionCode} local=${BuildConfig.VERSION_CODE}"
+            "[更新] 启动更新检测完成，发现新版本，channel=${update.updateChannel.displayName} remote=${update.versionCode} local=${BuildConfig.VERSION_CODE}"
         )
         pendingUpdate = update
     }

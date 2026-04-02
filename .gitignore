@@ -14,3 +14,4 @@ local.properties
 /signing.properties
 /out
 /BatteryRecorder.jks
+/app/debug/

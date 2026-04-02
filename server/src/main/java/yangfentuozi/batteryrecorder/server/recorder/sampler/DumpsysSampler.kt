@@ -5,11 +5,13 @@ import android.os.BatteryProperty
 import android.os.IBatteryPropertiesRegistrar
 import android.os.ParcelFileDescriptor
 import android.os.ServiceManager
+import androidx.annotation.Keep
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 private const val TAG = "DumpsysSampler"
 
+@Keep
 class DumpsysSampler : Sampler {
     private val batteryService = ServiceManager.getService("battery")
     private var registrar: IBatteryPropertiesRegistrar =

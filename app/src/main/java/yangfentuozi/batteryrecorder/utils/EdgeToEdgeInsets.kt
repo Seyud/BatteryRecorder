@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
  * - 底部导航手势区应由具体页面按内容类型决定是否避让，
  *   不能继续交给 Scaffold 一刀切处理，否则内容无法延伸到小白条区域。
  *
- * @result 仅包含顶部与水平安全区的 WindowInsets。
+ * @return 仅包含顶部与水平安全区的 WindowInsets。
  */
 @Composable
 fun batteryRecorderScaffoldInsets(): WindowInsets {
@@ -29,7 +29,7 @@ fun batteryRecorderScaffoldInsets(): WindowInsets {
 /**
  * 返回当前导航栏手势区对应的底部安全距离。
  *
- * @result 底部导航栏 inset 对应的 dp 值。
+ * @return 底部导航栏 inset 对应的 dp 值。
  */
 @Composable
 fun navigationBarBottomPadding(): Dp {
@@ -40,7 +40,7 @@ fun navigationBarBottomPadding(): Dp {
  * 在现有 PaddingValues 的底部追加导航栏安全距离。
  *
  * @param extraBottom 业务层额外需要保留的底部间距。
- * @result 叠加后的底部内边距。
+ * @return 叠加后的底部内边距。
  */
 @Composable
 fun PaddingValues.bottomWithNavigationBar(extraBottom: Dp = 0.dp): Dp {

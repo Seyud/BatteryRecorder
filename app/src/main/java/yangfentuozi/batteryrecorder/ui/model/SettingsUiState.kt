@@ -3,6 +3,7 @@ package yangfentuozi.batteryrecorder.ui.model
 import yangfentuozi.batteryrecorder.shared.config.dataclass.AppSettings
 import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import yangfentuozi.batteryrecorder.shared.config.dataclass.StatisticsSettings
+import yangfentuozi.batteryrecorder.shared.config.dataclass.UpdateChannel
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 /**
@@ -25,6 +26,8 @@ data class SettingsUiState(
     // AppSettings：设置页中由应用进程本地消费的展示偏好与启动行为。
     /** 启动时检测更新 */
     val checkUpdateOnStartup: Boolean = AppSettings().checkUpdateOnStartup,
+    /** 启动时检测更新使用的版本通道。 */
+    val updateChannel: UpdateChannel = AppSettings().updateChannel,
     /** 串联双电芯 */
     val dualCellEnabled: Boolean = AppSettings().dualCellEnabled,
     /** 放电也显示正值 */
@@ -57,10 +60,8 @@ data class SettingsUiState(
     val gameBlacklist: Set<String> = StatisticsSettings().gameBlacklist,
     /** 样本次数 */
     val sceneStatsRecentFileCount: Int = StatisticsSettings().sceneStatsRecentFileCount,
-    /** 当此记录加权 */
-    val predCurrentSessionWeightEnabled: Boolean = StatisticsSettings().predCurrentSessionWeightEnabled,
+    /** 启用首页/应用预测加权算法 */
+    val predWeightedAlgorithmEnabled: Boolean = StatisticsSettings().predWeightedAlgorithmEnabled,
     /** 加权强度 */
-    val predCurrentSessionWeightMaxX100: Int = StatisticsSettings().predCurrentSessionWeightMaxX100,
-    /** 加权半衰期 */
-    val predCurrentSessionWeightHalfLifeMin: Long = StatisticsSettings().predCurrentSessionWeightHalfLifeMin
+    val predWeightedAlgorithmAlphaMaxX100: Int = StatisticsSettings().predWeightedAlgorithmAlphaMaxX100
 )

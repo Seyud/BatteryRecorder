@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.ui.model
 
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
+import yangfentuozi.batteryrecorder.shared.config.dataclass.UpdateChannel
 
 data class CalibrationActions(
     val setDualCellEnabled: (Boolean) -> Unit,
@@ -26,13 +27,13 @@ data class LogActions(
 data class PredictionActions(
     val setGamePackages: (Set<String>, Set<String>) -> Unit,
     val setSceneStatsRecentFileCount: (Int) -> Unit,
-    val setPredCurrentSessionWeightEnabled: (Boolean) -> Unit,
-    val setPredCurrentSessionWeightMaxX100: (Int) -> Unit,
-    val setPredCurrentSessionWeightHalfLifeMin: (Long) -> Unit
+    val setPredWeightedAlgorithmEnabled: (Boolean) -> Unit,
+    val setPredWeightedAlgorithmAlphaMaxX100: (Int) -> Unit
 )
 
 data class SettingsActions(
     val setCheckUpdateOnStartup: (Boolean) -> Unit,
+    val setUpdateChannel: (UpdateChannel) -> Unit,
     val calibration: CalibrationActions,
     val server: ServerActions,
     val log: LogActions,

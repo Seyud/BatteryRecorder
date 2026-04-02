@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import yangfentuozi.batteryrecorder.ui.components.global.MarkdownText
+import yangfentuozi.batteryrecorder.ui.model.displayName
 import yangfentuozi.batteryrecorder.utils.AppUpdate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,7 +48,7 @@ fun UpdateDialog(
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "${update.versionName} (${update.versionCode})",
+                    text = "${update.versionName} (${update.versionCode}) ${update.updateChannel.displayName}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)

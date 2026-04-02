@@ -1587,7 +1587,7 @@ private fun slicePointsForViewport(
  * 在后台线程预计算图表绘制所需的全部重数据，避免 Compose 主线程承担大块同步计算。
  *
  * @param request 图表预处理请求，收敛所有输入参数
- * @result 返回 Loading / Empty / Ready 三种状态，供 UI 直接切换到 loading 或绘制
+ * @return 返回 Loading / Empty / Ready 三种状态，供 UI 直接切换到 loading 或绘制
  */
 private fun prepareChartState(request: ChartPreparationRequest): ChartPreparationResult {
     if (request.canvasSize.width <= 0 || request.canvasSize.height <= 0) {

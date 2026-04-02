@@ -14,7 +14,7 @@ object RecordDetailPowerStatsComputer {
      * 按记录文件的真实采样区间计算详情页功耗统计。
      *
      * @param records 已通过解析得到的有效记录点列表，要求时间戳按文件原始顺序传入
-     * @result 返回总平均、亮屏平均、息屏平均三项原始功率；若有效区间不足则返回 null
+     * @return 返回总平均、亮屏平均、息屏平均三项原始功率；若有效区间不足则返回 null
      */
     fun compute(records: List<LineRecord>): RecordDetailPowerStats? {
         if (records.size < 2) return null

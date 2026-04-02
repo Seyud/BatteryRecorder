@@ -10,6 +10,8 @@ import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
 data class AppSettings(
     /** 进入应用后是否自动执行更新检查。 */
     val checkUpdateOnStartup: Boolean = SettingsConstants.checkUpdateOnStartup.def,
+    /** 启动更新检测使用的版本通道。 */
+    val updateChannel: UpdateChannel = SettingsConstants.updateChannel.def,
     /** 是否按双电芯设备展示与计算功率。 */
     val dualCellEnabled: Boolean = SettingsConstants.dualCellEnabled.def,
     /** 放电记录在 UI 中是否显示为正值。 */

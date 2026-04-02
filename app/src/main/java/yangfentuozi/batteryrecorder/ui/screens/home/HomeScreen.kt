@@ -1,5 +1,10 @@
 package yangfentuozi.batteryrecorder.ui.screens.home
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -58,6 +64,66 @@ import yangfentuozi.batteryrecorder.utils.batteryRecorderScaffoldInsets
 import yangfentuozi.batteryrecorder.utils.navigationBarBottomPadding
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
+
+private data class HomeBatteryInfo(
+    val capacityPercent: Int?,
+    val voltageMv: Int?
+)
+
+/**
+ * 从系统电池广播提取首页当前记录卡片需要的电量与电压。
+ *
+ * @param intent `ACTION_BATTERY_CHANGED` 广播对象。
+ * @return 当前电量百分比与当前电压（毫伏）；字段缺失时对应返回空值。
+ */
+private fun resolveHomeBatteryInfo(intent: Intent?): HomeBatteryInfo {
+    if (intent == null) {
+        return HomeBatteryInfo(capacityPercent = null, voltageMv = null)
+    }
+    val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+    val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+    val capacityPercent = if (level >= 0 && scale > 0) {
+        (level * 100f / scale).roundToInt()
+    } else {
+        null
+    }
+    val voltageMv = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1).takeIf { it > 0 }
+    return HomeBatteryInfo(capacityPercent = capacityPercent, voltageMv = voltageMv)
+}
+
+/**
+ * 注册首页电池广播监听，并把最新电量、电压写入 Compose 状态。
+ *
+ * @param context 当前页面使用的上下文。
+ * @param onBatteryInfoChanged 电池信息更新回调。
+ * @return 无返回值。
+ */
+@Composable
+private fun ObserveHomeBatteryInfo(
+    context: Context,
+    onBatteryInfoChanged: (HomeBatteryInfo) -> Unit
+) {
+    val latestOnBatteryInfoChanged by rememberUpdatedState(onBatteryInfoChanged)
+    DisposableEffect(context) {
+        val appContext = context.applicationContext
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                latestOnBatteryInfoChanged(resolveHomeBatteryInfo(intent))
+            }
+        }
+        val initialIntent = ContextCompat.registerReceiver(
+            appContext,
+            receiver,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        latestOnBatteryInfoChanged(resolveHomeBatteryInfo(initialIntent))
+        onDispose {
+            appContext.unregisterReceiver(receiver)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +156,8 @@ fun HomeScreen(
     val dualCellEnabled = appSettings.dualCellEnabled
     val calibrationValue = appSettings.calibrationValue
     val dischargeDisplayPositive = appSettings.dischargeDisplayPositive
+    var currentCapacityPercent by remember { mutableStateOf<Int?>(null) }
+    var currentVoltageMv by remember { mutableStateOf<Int?>(null) }
 
     // 首页续航卡片与场景卡片共用同一批统计结果。
     val sceneStats by viewModel.sceneStats.collectAsState()
@@ -105,6 +173,10 @@ fun HomeScreen(
         if (uri != null) {
             viewModel.exportLogs(context, uri)
         }
+    }
+    ObserveHomeBatteryInfo(context = context) { batteryInfo ->
+        currentCapacityPercent = batteryInfo.capacityPercent
+        currentVoltageMv = batteryInfo.voltageMv
     }
 
     val listener = remember {
@@ -278,6 +350,8 @@ fun HomeScreen(
                             dualCellEnabled = dualCellEnabled,
                             calibrationValue = calibrationValue,
                             dischargeDisplayPositive = dischargeDisplayPositive,
+                            currentCapacityPercent = currentCapacityPercent,
+                            currentVoltageMv = currentVoltageMv,
                             onClick = {
                                 if (!currentRecordUiState.isSwitching) {
                                     currentRecordUiState.record?.let { record ->

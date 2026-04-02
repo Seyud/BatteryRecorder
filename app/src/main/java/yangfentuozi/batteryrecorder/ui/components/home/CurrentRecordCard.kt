@@ -41,6 +41,7 @@ import yangfentuozi.batteryrecorder.utils.computePowerW
 import yangfentuozi.batteryrecorder.utils.formatDateTime
 import yangfentuozi.batteryrecorder.utils.formatDurationHours
 import yangfentuozi.batteryrecorder.utils.formatPower
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -66,6 +67,8 @@ fun CurrentRecordCard(
     dualCellEnabled: Boolean,
     calibrationValue: Int,
     dischargeDisplayPositive: Boolean,
+    currentCapacityPercent: Int?,
+    currentVoltageMv: Int?,
     onClick: (() -> Unit)? = null
 ) {
     val record = uiState.record
@@ -107,6 +110,31 @@ fun CurrentRecordCard(
             Spacer(Modifier.height(12.dp))
             val stats = record.stats
             val latestPowerRaw = livePoints.lastOrNull()
+            val currentPowerText = if (latestPowerRaw != null) {
+                val displayPowerRaw =
+                    if (uiState.displayStatus == BatteryStatus.Discharging) {
+                        val absPower = abs(latestPowerRaw.toDouble())
+                        if (dischargeDisplayPositive) -absPower else absPower
+                    } else {
+                        latestPowerRaw.toDouble()
+                    }
+                formatPower(
+                    powerW = displayPowerRaw,
+                    dualCellEnabled = dualCellEnabled,
+                    calibrationValue = calibrationValue
+                )
+            } else {
+                "--W"
+            }
+            val averagePowerText = formatPower(
+                powerW = stats.averagePower,
+                dualCellEnabled = dualCellEnabled,
+                calibrationValue = calibrationValue
+            )
+            val currentCapacityText = currentCapacityPercent?.let { "$it%" } ?: "--"
+            val currentVoltageText = currentVoltageMv?.let {
+                String.format(Locale.getDefault(), "%.2f V", it / 1000.0)
+            } ?: "--"
 
             Row(
                 modifier = Modifier
@@ -119,19 +147,22 @@ fun CurrentRecordCard(
                     modifier = Modifier
                         .weight(1f, fill = true)
                         .fillMaxHeight()
-                        .padding(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatRow("开始时间", formatDateTime(stats.startTime))
                     StatRow(
-                        averageLabel,
-                        formatPower(
-                            powerW = stats.averagePower,
-                            dualCellEnabled = dualCellEnabled,
-                            calibrationValue = calibrationValue
-                        )
+                        "开始时间",
+                        formatDateTime(stats.startTime),
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
-                    StatRow("温度", latestPowerRaw?.let { "${lastTemp / 10.0}°C" } ?: "--")
+                    StatRow(
+                        "当前电量",
+                        currentCapacityText,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    StatRow(
+                        "电压",
+                        currentVoltageText,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
                 }
 
                 LivePowerChart(
@@ -147,33 +178,32 @@ fun CurrentRecordCard(
 
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f, fill = true)) {
-                    StatRow("时长", formatDurationHours(stats.endTime - stats.startTime))
+                    StatRow(
+                        "温度",
+                        latestPowerRaw?.let { "${lastTemp / 10.0}°C" } ?: "--",
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    StatRow(
+                        "时长",
+                        formatDurationHours(stats.endTime - stats.startTime),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
                 }
                 Column(modifier = Modifier.weight(1f, fill = true)) {
                     StatRow(
                         currentLabel,
-                        if (latestPowerRaw != null) {
-                            val displayPowerRaw =
-                                if (uiState.displayStatus == BatteryStatus.Discharging) {
-                                    val absPower = abs(latestPowerRaw.toDouble())
-                                    if (dischargeDisplayPositive) -absPower else absPower
-                                } else {
-                                    latestPowerRaw.toDouble()
-                                }
-                            formatPower(
-                                powerW = displayPowerRaw,
-                                dualCellEnabled = dualCellEnabled,
-                                calibrationValue = calibrationValue
-                            )
-                        } else {
-                            "--W"
-                        }
+                        currentPowerText,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    StatRow(
+                        averageLabel,
+                        averagePowerText,
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
             }

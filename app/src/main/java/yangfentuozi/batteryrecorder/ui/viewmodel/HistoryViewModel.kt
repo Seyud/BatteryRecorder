@@ -104,6 +104,8 @@ class HistoryViewModel : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _isImportExporting = MutableStateFlow(false)
+    val isImportExporting: StateFlow<Boolean> = _isImportExporting.asStateFlow()
 
     // 是否正在加载下一页；用于防止滚动触底时重复触发并发分页请求。
     private val _isPaging = MutableStateFlow(false)
@@ -142,30 +144,24 @@ class HistoryViewModel : ViewModel() {
         const val TARGET_TREND_BUCKET_COUNT = 240L
     }
 
+    /**
+     * 加载历史列表首页。
+     *
+     * @param context 应用上下文。
+     * @param type 历史类型。
+     * @return 初始化列表分页上下文，并加载第一页数据。
+     */
     fun loadRecords(context: Context, type: BatteryStatus) {
         if (_isLoading.value) return
         if (currentListType == type && hasInitializedListContext) return
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val dischargeDisplayPositive = getDischargeDisplayPositive(context)
-                val files = withContext(Dispatchers.IO) {
-                    HistoryRepository.listRecordFiles(context, type)
-                }
-                // 每次重新加载列表都推进 token，之前尚未完成的分页任务将被视为过期结果。
-                val token = listLoadToken + 1
-                listLoadToken = token
-                currentListType = type
-                listFiles = files
-                allListRecordsCache = null
-                pagedSourceRecords = null
-                latestListFile = files.firstOrNull()
-                listDischargeDisplayPositive = dischargeDisplayPositive
-                hasInitializedListContext = true
-                _chargeCapacityChangeFilter.value = null
-                resetDisplayedRecords(files.size)
-                // 首屏仅加载第一页；后续由 UI 滚动触底显式触发。
-                loadNextPageInternal(context, token)
+                reloadRecordsInternal(
+                    context = context,
+                    type = type,
+                    preserveChargeFilter = false
+                )
             } finally {
                 _isLoading.value = false
             }
@@ -316,7 +312,7 @@ class HistoryViewModel : ViewModel() {
      * 更新详情页放电功耗的显示符号配置。
      *
      * @param dischargeDisplayPositive 是否将放电显示为正值
-     * @result 仅刷新详情页顶部统计与记录详情，不触发图表重算
+     * @return 仅刷新详情页顶部统计与记录详情，不触发图表重算
      */
     fun updateRecordDetailDisplayConfig(dischargeDisplayPositive: Boolean) {
         if (detailDischargeDisplayPositive == dischargeDisplayPositive) return
@@ -410,9 +406,9 @@ class HistoryViewModel : ViewModel() {
         recordsFile: RecordsFile,
         destinationUri: Uri
     ) {
-        if (_isLoading.value) return
+        if (_isLoading.value || _isImportExporting.value) return
         viewModelScope.launch {
-            _isLoading.value = true
+            _isImportExporting.value = true
             try {
                 withContext(Dispatchers.IO) {
                     HistoryRepository.exportRecord(context, recordsFile, destinationUri)
@@ -424,7 +420,7 @@ class HistoryViewModel : ViewModel() {
                 LoggerX.e(TAG, "[导出] 单记录导出失败: ${recordsFile.name}", tr = e)
                 _userMessage.value = "导出失败"
             } finally {
-                _isLoading.value = false
+                _isImportExporting.value = false
             }
         }
     }
@@ -434,10 +430,10 @@ class HistoryViewModel : ViewModel() {
         type: BatteryStatus,
         destinationUri: Uri
     ) {
-        if (_isLoading.value) return
+        if (_isLoading.value || _isImportExporting.value) return
         val currentExportRecords = resolveCurrentExportRecords(type)
         viewModelScope.launch {
-            _isLoading.value = true
+            _isImportExporting.value = true
             try {
                 withContext(Dispatchers.IO) {
                     val exportRecords = currentExportRecords ?: HistoryRepository
@@ -452,13 +448,85 @@ class HistoryViewModel : ViewModel() {
                 LoggerX.e(TAG, "[导出] 批量导出失败: ${type.dataDirName}", tr = e)
                 _userMessage.value = "导出失败"
             } finally {
-                _isLoading.value = false
+                _isImportExporting.value = false
+            }
+        }
+    }
+
+    /**
+     * 导入当前历史页的一键导出 ZIP。
+     *
+     * @param context 应用上下文。
+     * @param type 当前历史页类型；导入记录会写入对应目录。
+     * @param sourceUri 用户选择的 ZIP 文档 Uri。
+     * @return 导入成功后立即刷新列表；任一条目非法时整次导入失败。
+     */
+    fun importAllRecords(
+        context: Context,
+        type: BatteryStatus,
+        sourceUri: Uri
+    ) {
+        if (_isLoading.value || _isImportExporting.value) return
+        viewModelScope.launch {
+            _isImportExporting.value = true
+            try {
+                val importedCount = withContext(Dispatchers.IO) {
+                    HistoryRepository.importRecordsZip(context, type, sourceUri)
+                }
+                reloadRecordsInternal(
+                    context = context,
+                    type = type,
+                    preserveChargeFilter = true
+                )
+                _userMessage.value = "导入成功，共 $importedCount 条"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LoggerX.e(TAG, "[导入] 批量导入失败: ${type.dataDirName}", tr = e)
+                _userMessage.value = "导入失败"
+            } finally {
+                _isImportExporting.value = false
             }
         }
     }
 
     fun consumeUserMessage() {
         _userMessage.value = null
+    }
+
+    private suspend fun reloadRecordsInternal(
+        context: Context,
+        type: BatteryStatus,
+        preserveChargeFilter: Boolean
+    ) {
+        val dischargeDisplayPositive = getDischargeDisplayPositive(context)
+        val files = withContext(Dispatchers.IO) {
+            HistoryRepository.listRecordFiles(context, type)
+        }
+        val token = listLoadToken + 1
+        listLoadToken = token
+        currentListType = type
+        listFiles = files
+        allListRecordsCache = null
+        pagedSourceRecords = null
+        latestListFile = files.firstOrNull()
+        listDischargeDisplayPositive = dischargeDisplayPositive
+        hasInitializedListContext = true
+
+        val nextChargeFilter = if (preserveChargeFilter && type == BatteryStatus.Charging) {
+            _chargeCapacityChangeFilter.value
+        } else {
+            null
+        }
+        _chargeCapacityChangeFilter.value = nextChargeFilter
+        if (nextChargeFilter != null) {
+            pagedSourceRecords = ensureAllListRecordsCache(context, token).filter { record ->
+                computeChargingCapacityChange(record) >= nextChargeFilter
+            }
+            if (token != listLoadToken) return
+        }
+        resetDisplayedRecords(currentSourceCount())
+        loadNextPageInternal(context, token)
     }
 
     private fun resetDisplayedRecords(sourceSize: Int) {
@@ -543,7 +611,7 @@ class HistoryViewModel : ViewModel() {
      * 异步重算记录详情图表状态。
      *
      * @param expectedDetailToken 期望命中的详情加载令牌；为 null 时沿用当前令牌
-     * @result 在后台线程完成图表派生计算，并且仅允许当前详情上下文回写结果
+     * @return 在后台线程完成图表派生计算，并且仅允许当前详情上下文回写结果
      */
     private fun requestRecordChartUiStateRecompute(expectedDetailToken: Long? = null) {
         val detailToken = expectedDetailToken ?: detailLoadToken
@@ -596,7 +664,7 @@ class HistoryViewModel : ViewModel() {
     /**
      * 清空当前详情页状态，确保切换记录时不会短暂显示上一条记录的数据。
      *
-     * @result 详情记录、图表状态、应用详情与缓存点位全部被同步重置
+     * @return 详情记录、图表状态、应用详情与缓存点位全部被同步重置
      */
     private fun clearRecordDetailState() {
         rawRecordDetail = null
@@ -612,7 +680,7 @@ class HistoryViewModel : ViewModel() {
     /**
      * 基于缓存的原始详情数据重新应用放电展示配置。
      *
-     * @result 详情页记录头与功耗拆分统计同步刷新，避免切换设置后出现显示不一致
+     * @return 详情页记录头与功耗拆分统计同步刷新，避免切换设置后出现显示不一致
      */
     private fun applyRecordDetailDisplayConfig() {
         val detail = rawRecordDetail
@@ -629,7 +697,7 @@ class HistoryViewModel : ViewModel() {
      *
      * @param stats 详情页功耗拆分统计的原始功率值
      * @param dischargeDisplayPositive 是否将放电视为正值
-     * @result 返回已经完成正负语义映射、但仍保留原始功率单位的 UI 状态
+     * @return 返回已经完成正负语义映射、但仍保留原始功率单位的 UI 状态
      */
     private fun mapRecordDetailPowerUiState(
         stats: RecordDetailPowerStats,
@@ -745,7 +813,7 @@ class HistoryViewModel : ViewModel() {
      *
      * @param detailType 当前详情页记录类型
      * @param lineRecords 当前详情页对应的有效记录点
-     * @result 放电记录返回功耗拆分统计，其它类型直接返回 null
+     * @return 放电记录返回功耗拆分统计，其它类型直接返回 null
      */
     private fun buildRecordDetailPowerStats(
         detailType: BatteryStatus,

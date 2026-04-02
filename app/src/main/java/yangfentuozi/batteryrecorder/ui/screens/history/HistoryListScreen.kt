@@ -16,15 +16,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Outbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -41,6 +45,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,9 +64,8 @@ import yangfentuozi.batteryrecorder.utils.navigationBarBottomPadding
 private const val NEAR_END_PRELOAD_THRESHOLD = 5
 private val CHARGE_CAPACITY_CHANGE_FILTERS = listOf(20, 40, 70)
 private val ChargeHistoryFilterChipShape = AppShape.medium
-private val ChargeHistoryFilterBarContentPaddingBottom = 16.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HistoryListScreen(
     batteryStatus: BatteryStatus,
@@ -78,6 +82,8 @@ fun HistoryListScreen(
     val calibrationValue by settingsViewModel.calibrationValue.collectAsState()
     // 一次性用户提示消息（如导出/删除结果提示）
     val userMessage by viewModel.userMessage.collectAsState()
+    // 导入/导出期间的共享加载态，避免重复触发文件操作。
+    val isImportExporting by viewModel.isImportExporting.collectAsState()
     // 当前是否正在分页加载（避免重复并发请求）
     val isPaging by viewModel.isPaging.collectAsState()
     // 是否还有更多历史记录可加载（用于触底预加载判断）
@@ -103,6 +109,13 @@ fun HistoryListScreen(
     ) { uri ->
         if (uri != null) {
             viewModel.exportAllRecords(context, batteryStatus, uri)
+        }
+    }
+    val importAllLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importAllRecords(context, batteryStatus, uri)
         }
     }
 
@@ -147,6 +160,20 @@ fun HistoryListScreen(
                 title = { Text(title) },
                 actions = {
                     IconButton(
+                        enabled = !isImportExporting,
+                        onClick = {
+                            importAllLauncher.launch(
+                                arrayOf("application/zip", "application/x-zip-compressed")
+                            )
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Download,
+                            contentDescription = "导入"
+                        )
+                    }
+                    IconButton(
+                        enabled = !isImportExporting,
                         onClick = {
                             exportAllLauncher.launch(buildHistoryZipFileName(batteryStatus))
                         }
@@ -175,135 +202,160 @@ fun HistoryListScreen(
             }
         }
     ) { paddingValues ->
-        if (records.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = emptyText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                state = listState,
-                contentPadding = PaddingValues(
-                    top = 8.dp,
-                    bottom = if (batteryStatus == BatteryStatus.Charging) {
-                        8.dp
-                    } else {
-                        navigationBarBottomPadding() + 8.dp
-                    }
-                ),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                itemsIndexed(records, key = { _, record -> record.name }) { index, record ->
-                    SwipeRevealRow(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        isOpen = openRecordName == record.name,
-                        onOpenChange = { open ->
-                            if (open) {
-                                openRecordName = record.name
-                            } else if (openRecordName == record.name) {
-                                openRecordName = null
-                            }
-                        },
-                        isGroupFirst = index == 0,
-                        isGroupLast = index == records.size - 1,
-                        startActionContent = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            openRecordName = null
-                                            pendingExportFile = record.asRecordsFile()
-                                            exportLauncher.launch(record.name)
-                                        }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Outbox,
-                                    contentDescription = "导出",
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-                        },
-                        endActionContent = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            openRecordName = null
-                                            viewModel.deleteRecord(context, record.asRecordsFile())
-                                        }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Delete,
-                                    contentDescription = "删除",
-                                    tint = MaterialTheme.colorScheme.onError
-                                )
-                            }
-                        },
-                        content = {
-                            val stats = record.stats
-                            val durationMs = stats.endTime - stats.startTime
-                            val capacityChange = if (record.type == BatteryStatus.Charging) {
-                                stats.endCapacity - stats.startCapacity
-                            } else {
-                                stats.startCapacity - stats.endCapacity
-                            }
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    text = formatFullDateTime(stats.startTime),
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "时长 ${formatDurationHours(durationMs)} · 电量 ${capacityChange}%",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "平均功率 ${
-                                        formatPower(
-                                            stats.averagePower,
-                                            dualCellEnabled,
-                                            calibrationValue
-                                        )
-                                    }",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        onContentClick = {
-                            onNavigateToRecordDetail(record.type, record.name)
-                        }
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (records.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = emptyText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                item { Spacer(modifier = Modifier.height(8.dp)) }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    state = listState,
+                    contentPadding = PaddingValues(
+                        top = 8.dp,
+                        bottom = if (batteryStatus == BatteryStatus.Charging) {
+                            8.dp
+                        } else {
+                            navigationBarBottomPadding() + 8.dp
+                        }
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    itemsIndexed(records, key = { _, record -> record.name }) { index, record ->
+                        SwipeRevealRow(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            isOpen = openRecordName == record.name,
+                            onOpenChange = { open ->
+                                if (open) {
+                                    openRecordName = record.name
+                                } else if (openRecordName == record.name) {
+                                    openRecordName = null
+                                }
+                            },
+                            isGroupFirst = index == 0,
+                            isGroupLast = index == records.size - 1,
+                            startActionContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(12.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            enabled = !isImportExporting,
+                                            onClick = {
+                                                openRecordName = null
+                                                pendingExportFile = record.asRecordsFile()
+                                                exportLauncher.launch(record.name)
+                                            }
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Outbox,
+                                        contentDescription = "导出",
+                                        tint = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            },
+                            endActionContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(12.dp)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                openRecordName = null
+                                                viewModel.deleteRecord(context, record.asRecordsFile())
+                                            }
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.onError
+                                    )
+                                }
+                            },
+                            content = {
+                                val stats = record.stats
+                                val durationMs = stats.endTime - stats.startTime
+                                val capacityChange = if (record.type == BatteryStatus.Charging) {
+                                    stats.endCapacity - stats.startCapacity
+                                } else {
+                                    stats.startCapacity - stats.endCapacity
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = formatFullDateTime(stats.startTime),
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "时长 ${formatDurationHours(durationMs)} · 电量 ${capacityChange}%",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "平均功率 ${
+                                            formatPower(
+                                                stats.averagePower,
+                                                dualCellEnabled,
+                                                calibrationValue
+                                            )
+                                        }",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onContentClick = {
+                                onNavigateToRecordDetail(record.type, record.name)
+                            }
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                }
+            }
+
+            if (isImportExporting) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        modifier = Modifier.size(42.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 6.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.size(38.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingIndicator()
+                        }
+                    }
+                }
             }
         }
     }
@@ -333,7 +385,7 @@ private fun ChargeHistoryFilterBar(
                     start = 16.dp,
                     top = 12.dp,
                     end = 16.dp,
-                    bottom = navigationBarBottomPadding()
+                    bottom = navigationBarBottomPadding() +12.dp
                 ),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
