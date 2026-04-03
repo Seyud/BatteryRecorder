@@ -79,13 +79,14 @@ class PowerRecordWriter(
         if (lastStatus != record.status) {
             LoggerX.d(TAG, "write: 电池状态切换, $lastStatus -> ${record.status}")
         }
+
         val result = when (record.status) {
             Charging -> {
-                chargeDataWriter.write(record, lastStatus != Charging)
+                chargeDataWriter.write(record)
             }
 
             Discharging -> {
-                dischargeDataWriter.write(record, lastStatus != Discharging)
+                dischargeDataWriter.write(record)
             }
 
             else -> WriteResult.Rejected
@@ -142,10 +143,8 @@ class PowerRecordWriter(
 
         protected val handler: Handler = Handlers.getHandler("RecorderWritingThread")
 
-        fun write(
-            record: LineRecord,
-            justChangedStatus: Boolean
-        ): WriteResult {
+        fun write(record: LineRecord): WriteResult {
+            val justChangedStatus = lastStatus != record.status
 
             // 选择性丢弃一些干扰数据
             if (justChangedStatus) lastChangedStatusTime = record.timestamp
