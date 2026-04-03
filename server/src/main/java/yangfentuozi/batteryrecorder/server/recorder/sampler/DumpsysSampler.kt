@@ -64,18 +64,22 @@ class DumpsysSampler : Sampler {
                 voltage = result.getOrNull(0) ?: 0
                 temp = (result.getOrNull(1) ?: 0).toInt()
             } catch (e: UnsatisfiedLinkError) {
-                LoggerX.w(TAG, "sample: JNI 未加载，回退 Kotlin 解析 dump 输出流", tr = e)
+                LoggerX.d(TAG, "sample: JNI 未加载，回退 Kotlin 解析 dump 输出流", tr = e)
                 ParcelFileDescriptor.AutoCloseInputStream(readSide).bufferedReader().use { reader ->
                     var line: String?
                     while ((reader.readLine().also { line = it }) != null) {
                         if (line != null) if (flag) {
                             when {
                                 line.contains("voltage:") -> {
-                                    voltage = line.substringAfter(": ").trim().toLongOrNull() ?: 0
+                                    line.substringAfter(": ").trim().toLongOrNull().let {
+                                        if (it != null) voltage = it
+                                    }
                                 }
 
                                 line.contains("temperature:") -> {
-                                    temp = line.substringAfter(": ").trim().toIntOrNull() ?: 0
+                                    line.substringAfter(": ").trim().toIntOrNull().let {
+                                        if (it != null) temp = it
+                                    }
                                 }
                             }
                         } else if (line.contains("Current Battery Service state:")) flag = true
@@ -94,7 +98,6 @@ class DumpsysSampler : Sampler {
                 }
             }
         }
-        BatteryManager.BATTERY_PROPERTY_CURRENT_NOW
         return Sampler.BatteryData(
             voltage = voltage * 1000, // 修正单位与内核数据一致
             current = current,
