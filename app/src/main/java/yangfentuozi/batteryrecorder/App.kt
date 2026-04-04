@@ -30,6 +30,10 @@ class App: Application() {
             "[应用] 日志初始化完成: level=${settings.logLevel} dir=${File(cacheDir, Constants.APP_LOG_DIR_PATH).absolutePath} " +
                 "maxDays=${settings.maxHistoryDays}"
         )
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            LoggerX.a(thread.name, "App crashed", tr = throwable)
+            LoggerX.writer?.close()
+        }
     }
 }
 
