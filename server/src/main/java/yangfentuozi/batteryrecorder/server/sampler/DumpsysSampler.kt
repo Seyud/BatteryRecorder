@@ -1,4 +1,4 @@
-package yangfentuozi.batteryrecorder.server.recorder.sampler
+package yangfentuozi.batteryrecorder.server.sampler
 
 import android.os.BatteryManager
 import android.os.BatteryProperty

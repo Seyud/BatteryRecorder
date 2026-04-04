@@ -193,7 +193,7 @@ static jlongArray native_parse_battery_dump_pfd(
 
 int register_dump_parser_native_methods(JNIEnv *env) {
     const char *class_name =
-            "yangfentuozi/batteryrecorder/server/recorder/sampler/DumpsysSampler";
+            "yangfentuozi/batteryrecorder/server/sampler/DumpsysSampler";
     jclass clazz = env->FindClass(class_name);
     if (!clazz) {
         LOGE("%s: Failed to find class %s", __func__, class_name);

@@ -13,7 +13,7 @@ import android.os.RemoteCallbackList
 import android.os.RemoteException
 import android.os.ServiceManager
 import androidx.annotation.Keep
-import yangfentuozi.batteryrecorder.server.recorder.sampler.Sampler
+import yangfentuozi.batteryrecorder.server.sampler.Sampler
 import yangfentuozi.batteryrecorder.server.writer.PowerRecordWriter
 import yangfentuozi.batteryrecorder.shared.Constants
 import yangfentuozi.batteryrecorder.shared.config.SettingsConstants

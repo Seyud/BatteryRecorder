@@ -11,8 +11,8 @@ import android.system.Os
 import android.system.OsConstants
 import yangfentuozi.batteryrecorder.server.recorder.IRecordListener
 import yangfentuozi.batteryrecorder.server.recorder.Monitor
-import yangfentuozi.batteryrecorder.server.recorder.sampler.DumpsysSampler
-import yangfentuozi.batteryrecorder.server.recorder.sampler.SysfsSampler
+import yangfentuozi.batteryrecorder.server.sampler.DumpsysSampler
+import yangfentuozi.batteryrecorder.server.sampler.SysfsSampler
 import yangfentuozi.batteryrecorder.server.writer.PowerRecordWriter
 import yangfentuozi.batteryrecorder.shared.Constants
 import yangfentuozi.batteryrecorder.shared.config.ConfigUtil
