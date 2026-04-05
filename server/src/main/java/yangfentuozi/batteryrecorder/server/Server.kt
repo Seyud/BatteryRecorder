@@ -160,7 +160,7 @@ class Server internal constructor() : IService.Stub() {
     }
 
     override fun sync(): ParcelFileDescriptor? {
-        writer.flushBuffer()
+        writer.flushBufferBlocking()
         if (Os.getuid() == 0) {
             LoggerX.d(TAG, "sync: root 模式不需要同步文件, return null")
             return null

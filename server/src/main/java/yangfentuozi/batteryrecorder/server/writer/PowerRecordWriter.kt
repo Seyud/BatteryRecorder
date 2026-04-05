@@ -105,6 +105,11 @@ class PowerRecordWriter(
         dischargeDataWriter.flushBuffer()
     }
 
+    fun flushBufferBlocking() {
+        chargeDataWriter.flushBufferBlocking()
+        dischargeDataWriter.flushBufferBlocking()
+    }
+
     inner class ChargeDataWriter(dir: File) : BaseDelayedRecordWriter(dir) {
         override fun needStartNewSegment(justChangedStatus: Boolean, nowTime: Long): Boolean {
             // case1 记录超过最大分段时间（0 表示不按时间分段）
@@ -165,7 +170,7 @@ class PowerRecordWriter(
 
             if (startedNewSegment) {
                 LoggerX.d(BASE_TAG, "write: 新分段已创建, 立即落盘, file=${segmentFile?.name}")
-                writer!!.flushNow()
+                writer!!.flushNowBlocking()
                 val currentFile = segmentFile
                 if (currentFile != null) {
                     LoggerX.d(
@@ -185,7 +190,7 @@ class PowerRecordWriter(
 
             writer!!.onEnqueued()
             if (justChangedStatus) {
-                writer!!.flushNow()
+                writer!!.flushNowBlocking()
                 val currentFile = segmentFile
                 if (currentFile != null) {
                     LoggerX.d(
@@ -256,6 +261,10 @@ class PowerRecordWriter(
 
         fun flushBuffer() {
             writer?.flushNow()
+        }
+
+        fun flushBufferBlocking() {
+            writer?.flushNowBlocking()
         }
 
         fun closeCurrentSegment() {

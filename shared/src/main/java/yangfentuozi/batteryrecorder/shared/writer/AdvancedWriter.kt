@@ -61,6 +61,14 @@ class AdvancedWriter(
         flushInternal("flushNow")
     }
 
+    /**
+     * 立即把当前缓冲与后台重试缓冲都刷到输出流，并阻塞直到本轮写入完成。
+     */
+    fun flushNowBlocking() {
+        flushInternal("flushNowBlocking")
+        autoRetryWriter.drainBufferBlocking()
+    }
+
     fun close() {
         // 关闭前先取消延迟 flush，避免 close 后仍有回调触发写入
         handler.removeCallbacks(flushRunnable)
@@ -193,57 +201,62 @@ class AdvancedWriter(
             }
         }
 
-        private fun drainBufferBlocking() {
+        fun drainBufferBlocking() {
             synchronized(bufferLock) {
                 if (buffer.isEmpty()) return
+                val originalRetryIntervalMs = retryIntervalMs
                 retryIntervalMs = 100
-                var localRetryCount = 0
-                while (buffer.isNotEmpty()) {
-                    try {
-                        outputStream.write(buffer.toString().toByteArray())
-                        outputStream.flush()
-                        buffer.setLength(0)
-                        retryCount = -1
-                        return
-                    } catch (e: IOException) {
-                        if (++localRetryCount > retryTimes) {
-                            try {
-                                outputStream.close()
-                            } catch (closeErr: IOException) {
-                                LoggerX.e(
+                try {
+                    var localRetryCount = 0
+                    while (buffer.isNotEmpty()) {
+                        try {
+                            outputStream.write(buffer.toString().toByteArray())
+                            outputStream.flush()
+                            buffer.setLength(0)
+                            retryCount = -1
+                            return
+                        } catch (e: IOException) {
+                            if (++localRetryCount > retryTimes) {
+                                try {
+                                    outputStream.close()
+                                } catch (closeErr: IOException) {
+                                    LoggerX.e(
+                                        RETRY_TAG,
+                                        "drainBufferBlocking: 关闭 OutputStream 失败",
+                                        tr = closeErr,
+                                        notWrite = useAndroidLog
+                                    )
+                                }
+                                outputStream = try {
+                                    reopenOutputStream()
+                                } catch (reopenErr: IOException) {
+                                    LoggerX.e(
+                                        RETRY_TAG,
+                                        "drainBufferBlocking: 重新打开 OutputStream 失败, 多次重试失败, 强行终止",
+                                        tr = reopenErr,
+                                        notWrite = useAndroidLog
+                                    )
+                                    throw RuntimeException()
+                                }
+                                LoggerX.i(
                                     RETRY_TAG,
-                                    "drainBufferBlocking: 关闭 OutputStream 失败",
-                                    tr = closeErr,
+                                    "drainBufferBlocking: OutputStream 已重建, 继续写入重试",
                                     notWrite = useAndroidLog
                                 )
+                                localRetryCount = 0
+                                continue
                             }
-                            outputStream = try {
-                                reopenOutputStream()
-                            } catch (reopenErr: IOException) {
-                                LoggerX.e(
-                                    RETRY_TAG,
-                                    "drainBufferBlocking: 重新打开 OutputStream 失败, 多次重试失败, 强行终止",
-                                    tr = reopenErr,
-                                    notWrite = useAndroidLog
-                                )
-                                throw RuntimeException()
-                            }
-                            LoggerX.i(
+                            LoggerX.w(
                                 RETRY_TAG,
-                                "drainBufferBlocking: OutputStream 已重建, 继续写入重试",
+                                "drainBufferBlocking: 写入 OutputStream 失败, 准备重试: retryCount=$localRetryCount/$retryTimes",
+                                tr = e,
                                 notWrite = useAndroidLog
                             )
-                            localRetryCount = 0
-                            continue
+                            Thread.sleep(retryIntervalMs)
                         }
-                        LoggerX.w(
-                            RETRY_TAG,
-                            "drainBufferBlocking: 写入 OutputStream 失败, 准备重试: retryCount=$localRetryCount/$retryTimes",
-                            tr = e,
-                            notWrite = useAndroidLog
-                        )
-                        Thread.sleep(retryIntervalMs)
                     }
+                } finally {
+                    retryIntervalMs = originalRetryIntervalMs
                 }
             }
         }

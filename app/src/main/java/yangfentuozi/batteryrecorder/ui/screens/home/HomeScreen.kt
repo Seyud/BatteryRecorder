@@ -42,7 +42,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
 import yangfentuozi.batteryrecorder.R
 import yangfentuozi.batteryrecorder.ipc.Service
 import yangfentuozi.batteryrecorder.server.recorder.IRecordListener
@@ -208,22 +207,19 @@ fun HomeScreen(
 
     LaunchedEffect(serviceConnected, settingsInitialized) {
         if (!settingsInitialized) return@LaunchedEffect
-        val shouldDoDelayedRefresh = serviceConnected && !prevServiceConnected
+        val shouldRefreshOnReconnect = serviceConnected && !prevServiceConnected
         prevServiceConnected = serviceConnected
-        if (!shouldDoDelayedRefresh) return@LaunchedEffect
+        if (!shouldRefreshOnReconnect) return@LaunchedEffect
         if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
             return@LaunchedEffect
         }
 
         Service.service?.registerRecordListener(listener)
-        run {
-            delay(1500)
-            viewModel.refreshStatisticsTrackingCurrentRecord(
-                context = context,
-                request = statisticsSettings,
-                recordIntervalMs = recordIntervalMs
-            )
-        }
+        viewModel.refreshStatisticsTrackingCurrentRecord(
+            context = context,
+            request = statisticsSettings,
+            recordIntervalMs = recordIntervalMs
+        )
     }
 
     LaunchedEffect(settingsInitialized) {
