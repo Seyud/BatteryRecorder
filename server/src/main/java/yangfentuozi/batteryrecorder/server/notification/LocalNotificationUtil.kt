@@ -82,18 +82,9 @@ class LocalNotificationUtil : NotificationUtil {
     }
 
     private fun buildNotification(info: NotificationInfo): Notification {
-        val contentText = buildContentText(info)
-        return Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(cachedIcon)
-            .setContentTitle(NOTIFICATION_TITLE)
-            .setContentText(contentText)
+        val contentText = notificationMessage.format(info.power, 1.0 * info.temp / 10)
+        return reusableBuilder.setContentText(contentText)
             .setTicker(contentText)
-            .setShowWhen(false)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setOnlyAlertOnce(true)
-            .setOngoing(true)
-            .setAutoCancel(false)
             .build()
     }
 
@@ -119,9 +110,15 @@ class LocalNotificationUtil : NotificationUtil {
         }
     }
 
-    private fun buildContentText(info: NotificationInfo): String {
-        return notificationMessage.format(info.power, 1.0 * info.temp / 10)
-    }
+    private val reusableBuilder = Notification.Builder(context, CHANNEL_ID)
+        .setSmallIcon(cachedIcon)
+        .setContentTitle(NOTIFICATION_TITLE)
+        .setShowWhen(false)
+        .setCategory(Notification.CATEGORY_SERVICE)
+        .setVisibility(Notification.VISIBILITY_PUBLIC)
+        .setOnlyAlertOnce(true)
+        .setOngoing(true)
+        .setAutoCancel(false)
 
     private val notificationMessage: String =
         context.packageManager.getResourcesForApplication(Constants.APP_PACKAGE_NAME)
