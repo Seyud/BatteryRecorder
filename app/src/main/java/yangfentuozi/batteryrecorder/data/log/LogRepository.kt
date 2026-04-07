@@ -40,12 +40,12 @@ object LogRepository {
         destinationUri: Uri
     ): LogExportResult {
         val appLogsDir = File(context.cacheDir, Constants.APP_LOG_DIR_PATH)
-        LoggerX.i(TAG, "[导出日志] 开始导出日志压缩包", notWrite = true)
+        LoggerX.i(TAG, "exportLogsZip: 开始导出日志压缩包", notWrite = true)
         LoggerX.flushBlocking()
         val appFileCount = requireLogFiles(appLogsDir, "App")
         LoggerX.d(
             TAG,
-            "[导出日志] App 日志目录检查完成: dir=${appLogsDir.absolutePath} count=$appFileCount"
+            "exportLogsZip: App 日志目录检查完成 dir=${appLogsDir.absolutePath} count=$appFileCount"
         )
 
         val serverTempDir = File(
@@ -62,7 +62,7 @@ object LogRepository {
             } catch (e: Exception) {
                 serverExportFailed = true
                 serverFailureMessage = e.message ?: e::class.java.simpleName
-                LoggerX.w(TAG, "[导出日志] Server 日志导出失败，将仅导出 App 日志", tr = e)
+                LoggerX.w(TAG, "exportLogsZip: Server 日志导出失败, 将仅导出 App 日志", tr = e)
             }
 
             // 在真正遍历日志目录打包前同步刷新一次，尽量把本次导出相关日志也包含进 ZIP。
@@ -74,7 +74,7 @@ object LogRepository {
                 ZipOutputStream(rawOutput).use { zipOutput ->
                     LoggerX.i(
                         TAG,
-                        "[导出日志] 开始写入 ZIP: appCount=$appFileCount serverCount=$serverFileCount"
+                        "exportLogsZip: 开始写入 ZIP appCount=$appFileCount serverCount=$serverFileCount"
                     )
                     val zippedAppCount = zipDirectory(zipOutput, appLogsDir, "app")
                     if (zippedAppCount == 0) {
@@ -84,7 +84,7 @@ object LogRepository {
                         val zippedServerCount = zipDirectory(zipOutput, serverTempDir, "server")
                         LoggerX.d(
                             TAG,
-                            "[导出日志] Server 日志写入 ZIP 完成: zippedServerCount=$zippedServerCount"
+                            "exportLogsZip: Server 日志写入 ZIP 完成 zippedServerCount=$zippedServerCount"
                         )
                     }
                 }
@@ -93,12 +93,12 @@ object LogRepository {
             if (serverExportFailed) {
                 LoggerX.i(
                     TAG,
-                    "[导出日志] 导出完成，Server 日志缺失: appCount=$appFileCount reason=$serverFailureMessage"
+                    "exportLogsZip: 导出完成, Server 日志缺失 appCount=$appFileCount reason=$serverFailureMessage"
                 )
             } else {
                 LoggerX.i(
                     TAG,
-                    "[导出日志] 导出完成: appCount=$appFileCount serverCount=$serverFileCount"
+                    "exportLogsZip: 导出完成 appCount=$appFileCount serverCount=$serverFileCount"
                 )
             }
             return LogExportResult(
@@ -141,7 +141,7 @@ object LogRepository {
                 }
                 zipOutput.closeEntry()
                 entryCount += 1
-                LoggerX.d(TAG, "[导出日志] 写入 ZIP 条目: entry=$entryName")
+                LoggerX.d(TAG, "zipDirectory: 写入 ZIP 条目 entry=$entryName")
             }
         return entryCount
     }
@@ -176,23 +176,23 @@ object LogRepository {
      */
     @Throws(IOException::class)
     private fun tryReceiveServerLogs(tempDir: File): Int {
-        LoggerX.i(TAG, "[导出日志] 开始尝试拉取 Server 日志")
+        LoggerX.i(TAG, "tryReceiveServerLogs: 开始尝试拉取 Server 日志")
         val service = Service.service ?: throw IOException("服务未连接，无法导出 Server 日志")
         val readPfd = service.exportLogs()
             ?: throw IOException("服务端未返回日志导出管道")
-        LoggerX.d(TAG, "[导出日志] 已获取 Server 日志导出管道")
+        LoggerX.d(TAG, "tryReceiveServerLogs: 已获取 Server 日志导出管道")
 
         if (!tempDir.exists() && !tempDir.mkdirs()) {
             throw IOException("创建 Server 日志临时目录失败: ${tempDir.absolutePath}")
         }
-        LoggerX.d(TAG, "[导出日志] Server 日志临时目录已创建: dir=${tempDir.absolutePath}")
+        LoggerX.d(TAG, "tryReceiveServerLogs: Server 日志临时目录已创建 dir=${tempDir.absolutePath}")
 
         PfdFileReceiver.receiveToDir(readPfd, tempDir)
         val fileCount = countRegularFiles(tempDir)
         if (fileCount == 0) {
             throw FileNotFoundException("Server 日志导出为空")
         }
-        LoggerX.i(TAG, "[导出日志] Server 日志接收完成: count=$fileCount")
+        LoggerX.i(TAG, "tryReceiveServerLogs: Server 日志接收完成 count=$fileCount")
         return fileCount
     }
 
@@ -206,11 +206,11 @@ object LogRepository {
         if (!tempDir.exists()) {
             return
         }
-        LoggerX.d(TAG, "[导出日志] 开始清理临时目录: dir=${tempDir.absolutePath}")
+        LoggerX.d(TAG, "cleanupTempDir: 开始清理临时目录 dir=${tempDir.absolutePath}")
         if (tempDir.deleteRecursively()) {
-            LoggerX.d(TAG, "[导出日志] 临时目录清理完成")
+            LoggerX.d(TAG, "cleanupTempDir: 临时目录清理完成")
         } else {
-            LoggerX.w(TAG, "[导出日志] 临时目录清理失败: dir=${tempDir.absolutePath}")
+            LoggerX.w(TAG, "cleanupTempDir: 临时目录清理失败 dir=${tempDir.absolutePath}")
         }
     }
 

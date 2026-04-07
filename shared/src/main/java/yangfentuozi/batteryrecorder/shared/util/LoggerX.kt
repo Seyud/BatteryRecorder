@@ -15,8 +15,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 object LoggerX {
+    private const val FLUSH_BLOCKING_TIMEOUT_MS = 5_000L
 
     @Volatile
     var writer: LogWriter? = null
@@ -150,8 +152,9 @@ object LoggerX {
      *
      * 导出日志、抓取故障现场等对时效敏感的场景应显式调用，避免只拿到旧文件内容。
      */
+    @Throws(IOException::class)
     fun flushBlocking() {
-        writer?.flushBlocking()
+        writer?.flushBlocking(FLUSH_BLOCKING_TIMEOUT_MS)
     }
 
     enum class LogLevel(val priority: Int, val shortName: String) {
@@ -272,31 +275,46 @@ object LoggerX {
         /**
          * 同步刷新当前活跃日志文件，确保主缓冲和重试缓冲都已写入磁盘。
          */
-        fun flushBlocking() {
+        @Throws(IOException::class)
+        fun flushBlocking(timeoutMs: Long) {
             if (closed) return
-            fun flushAction() {
-                if (closed) return
-                writer?.flushNowBlocking()
-            }
             if (Looper.myLooper() == handler.looper) {
                 try {
-                    flushAction()
+                    if (!closed) {
+                        writer?.flushNowBlocking()
+                    }
                 } catch (e: Exception) {
                     e("LogWriter", "flushBlocking: 同步刷新日志失败", tr = e, notWrite = true)
+                    throw IOException("flushBlocking: 同步刷新日志失败", e)
                 }
                 return
             }
             val latch = CountDownLatch(1)
-            handler.post {
+            var flushError: IOException? = null
+            val posted = handler.post {
                 try {
-                    flushAction()
+                    if (!closed) {
+                        writer?.flushNowBlocking()
+                    }
                 } catch (e: Exception) {
                     e("LogWriter", "flushBlocking: 同步刷新日志失败", tr = e, notWrite = true)
+                    flushError = IOException("flushBlocking: 同步刷新日志失败", e)
                 } finally {
                     latch.countDown()
                 }
             }
-            latch.await()
+            if (!posted) {
+                throw IOException("flushBlocking: LoggingThread 已退出，无法投递刷新任务")
+            }
+            try {
+                if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                    throw IOException("flushBlocking: 等待日志刷新超时: timeoutMs=$timeoutMs")
+                }
+                flushError?.let { throw it }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw IOException("flushBlocking: 等待日志刷新被中断", e)
+            }
         }
 
         private fun openWriter() {

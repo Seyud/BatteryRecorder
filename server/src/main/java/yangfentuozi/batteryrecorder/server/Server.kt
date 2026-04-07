@@ -31,7 +31,6 @@ import yangfentuozi.hiddenapi.compat.PackageManagerCompat
 import yangfentuozi.hiddenapi.compat.ServiceManagerCompat
 import java.io.File
 import java.io.FileDescriptor
-import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 import java.util.Scanner
@@ -226,43 +225,59 @@ class Server internal constructor() : IService.Stub() {
      */
     override fun exportLogs(): ParcelFileDescriptor {
         val logDir = File("${Constants.SHELL_DATA_DIR_PATH}/${Constants.SHELL_LOG_DIR_PATH}")
-        LoggerX.i(tag, "[导出日志] 收到服务端日志导出请求", notWrite = true)
-        LoggerX.d(tag, "[导出日志] 服务端日志目录: dir=${logDir.absolutePath}", notWrite = true)
+        LoggerX.i(tag, "exportLogs: 收到服务端日志导出请求", notWrite = true)
+        LoggerX.d(tag, "exportLogs: 服务端日志目录 dir=${logDir.absolutePath}", notWrite = true)
 
         if (!logDir.exists() || !logDir.isDirectory) {
             LoggerX.w(
                 tag,
-                "[导出日志] 服务端日志目录不可用: dir=${logDir.absolutePath}",
+                "exportLogs: 服务端日志目录不可用 dir=${logDir.absolutePath}",
                 notWrite = true
             )
-            throw FileNotFoundException("服务端日志目录不存在: ${logDir.absolutePath}")
+            throw RemoteException("服务端日志目录不存在: ${logDir.absolutePath}")
         }
 
-        LoggerX.flushBlocking()
-
-        val fileCount = countRegularFiles(logDir)
-        if (fileCount == 0) {
-            LoggerX.w(tag, "[导出日志] 服务端日志目录为空: dir=${logDir.absolutePath}", notWrite = true)
-            throw FileNotFoundException("服务端日志目录为空: ${logDir.absolutePath}")
+        try {
+            LoggerX.flushBlocking()
+        } catch (e: IOException) {
+            LoggerX.e(tag, "exportLogs: 刷新服务端日志失败", tr = e, notWrite = true)
+            throw RemoteException("刷新服务端日志失败: ${e.message}").apply { initCause(e) }
         }
 
-        val pipe = ParcelFileDescriptor.createPipe()
+        if (!logDir.walkTopDown().any { it.isFile }) {
+            LoggerX.w(tag, "exportLogs: 服务端日志目录为空 dir=${logDir.absolutePath}", notWrite = true)
+            throw RemoteException("服务端日志目录为空: ${logDir.absolutePath}")
+        }
+
+        val pipe = try {
+            ParcelFileDescriptor.createPipe()
+        } catch (e: IOException) {
+            LoggerX.e(tag, "exportLogs: 创建导出管道失败", tr = e, notWrite = true)
+            throw RemoteException("创建导出管道失败: ${e.message}").apply { initCause(e) }
+        }
         val readEnd = pipe[0]
         val writeEnd = pipe[1]
-        LoggerX.i(tag, "[导出日志] 开始导出服务端日志: count=$fileCount")
-        LoggerX.d(tag, "[导出日志] 导出管道创建完成")
-        LoggerX.flushBlocking()
+        LoggerX.i(tag, "exportLogs: 开始导出服务端日志")
+        LoggerX.d(tag, "exportLogs: 导出管道创建完成")
+        try {
+            LoggerX.flushBlocking()
+        } catch (e: IOException) {
+            runCatching { readEnd.close() }
+            runCatching { writeEnd.close() }
+            LoggerX.e(tag, "exportLogs: 刷新服务端日志失败", tr = e, notWrite = true)
+            throw RemoteException("刷新服务端日志失败: ${e.message}").apply { initCause(e) }
+        }
 
         Thread {
             try {
                 var sentCount = 0
                 PfdFileSender.sendFile(writeEnd, logDir) { file ->
                     sentCount += 1
-                    LoggerX.d(tag, "[导出日志] 已发送日志文件: file=${file.name}")
+                    LoggerX.d(tag, "exportLogs: 已发送日志文件 file=${file.name}")
                 }
-                LoggerX.i(tag, "[导出日志] 服务端日志导出完成: sentCount=$sentCount")
+                LoggerX.i(tag, "exportLogs: 服务端日志导出完成 sentCount=$sentCount")
             } catch (e: Exception) {
-                LoggerX.e(tag, "[导出日志] 服务端日志导出失败", tr = e)
+                LoggerX.e(tag, "exportLogs: 服务端日志导出失败", tr = e)
                 try {
                     writeEnd.close()
                 } catch (_: Exception) {
@@ -271,17 +286,6 @@ class Server internal constructor() : IService.Stub() {
         }.start()
 
         return readEnd
-    }
-
-    /**
-     * 统计目录中的常规文件数量，用于在导出前快速判空并补充调试日志。
-     *
-     * @param directory 待统计目录。
-     * @return 常规文件数量。
-     */
-    private fun countRegularFiles(directory: File): Int {
-        return directory.walkTopDown()
-            .count { it.isFile }
     }
 
     private fun stopServiceImmediately() {

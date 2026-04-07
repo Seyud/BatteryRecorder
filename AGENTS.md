@@ -478,6 +478,7 @@ shared/src/main/
 - 代码标识符遵循项目现有英文命名约定
 - 新增依赖必须写入 `gradle/libs.versions.toml`
 - AIDL 变更时必须同时检查 `:server` 与 `:shared`
+- AIDL / Binder 对外方法需要向客户端暴露失败时，统一抛 `RemoteException`，不要随意抛出 `IOException`、`FileNotFoundException` 等实现细节异常
 - `hiddenapi:stub` 中的类只做声明，不包含实现
 - 时间格式化统一复用 `FormatUtil`
 - 公共 UI 组件放在 `ui/components/global/`
@@ -494,6 +495,9 @@ shared/src/main/
   - `LoggerX.e<Foo>("...", tr = e)`
 - Java 或无法使用 reified 的场景使用字符串 Tag 重载
 - App、Server、NotificationServer 当前都注册了默认未捕获异常处理器；涉及进程入口改动时必须同步检查崩溃日志是否仍能落盘并正确关闭 writer
+- 日志格式统一为：`tag = 类名`，`msg = 方法名: 信息`
+- 日志内容里的标点统一使用半角符号和半角空格，避免出现 `：`、`，`、`（`、`）` 这类全角写法
+- `App`、`Server`、`Binder`、`ZIP` 等术语保持英文，不要硬翻译成中文
 - 日志内容保持结构化前缀，例如：
   - `[BOOT]`
   - `[启动]`
