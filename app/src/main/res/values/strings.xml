@@ -169,7 +169,8 @@
     <string name="docs_intro_title">Read the docs before first use</string>
     <string name="docs_intro_message">Please read the user guide before continuing.\nThe docs cover startup methods, calibration, excluding high-load apps, prediction, history gestures, and chart interactions.</string>
     <string name="docs_intro_open">Open user guide</string>
-    <string name="about_view_source">View source on GitHub</string>
+    <string name="about_view_source">GitHub</string>
+    <string name="about_telegram">Telegram</string>
     <string name="donate_dialog_title">Support ongoing maintenance</string>
     <string name="donate_dialog_message">If this project helps you, you can support it with the QR code below.\nThe income will be used for domain renewal and ongoing maintenance support.</string>
     <string name="donate_dialog_qr_content_description">Donation QR code</string>

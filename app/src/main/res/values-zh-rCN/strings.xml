@@ -169,7 +169,8 @@
     <string name="docs_intro_title">首次使用请先看文档</string>
     <string name="docs_intro_message">请先阅读使用说明，再继续使用应用。\n文档包含启动方式、校准、排除高负载 App、续航预测、历史记录手势和图表交互说明。</string>
     <string name="docs_intro_open">查看使用文档</string>
-    <string name="about_view_source">在 GitHub 查看源码</string>
+    <string name="about_view_source">GitHub</string>
+    <string name="about_telegram">Telegram</string>
     <string name="donate_dialog_title">支持项目维护</string>
     <string name="donate_dialog_message">如果这个项目对你有帮助，欢迎通过下方收款码支持维护。\n收入会用于续费域名和日常维护支持。</string>
     <string name="donate_dialog_qr_content_description">捐赠收款码</string>

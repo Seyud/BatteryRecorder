@@ -1,8 +1,10 @@
 package yangfentuozi.batteryrecorder.ui.dialog.home
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +35,7 @@ import yangfentuozi.batteryrecorder.R
 import kotlin.math.roundToInt
 
 private const val REPO_URL = "https://github.com/Itosang/BatteryRecorder"
+private const val TELEGRAM_URL = "https://t.me/BatteryRecorder"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,10 +90,23 @@ fun AboutDialog(onDismiss: () -> Unit) {
 
                 Spacer(Modifier.height(16.dp))
 
-                TextButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, REPO_URL.toUri()))
-                }) {
-                    Text(stringResource(R.string.about_view_source))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, REPO_URL.toUri()))
+                        }
+                    ) {
+                        Text(stringResource(R.string.about_view_source))
+                    }
+                    TextButton(
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, TELEGRAM_URL.toUri()))
+                        }
+                    ) {
+                        Text(stringResource(R.string.about_telegram))
+                    }
                 }
             }
         }
