@@ -59,6 +59,7 @@ data class RecordDetailPowerUiState(
     val averagePower: Double,
     val screenOnAveragePower: Double?,
     val screenOffAveragePower: Double?,
+    val totalTransferredMahBase: Double,
     val screenOnConsumedMahBase: Double,
     val screenOffConsumedMahBase: Double
 )
@@ -829,7 +830,7 @@ class HistoryViewModel : ViewModel() {
     }
 
     /**
-     * 基于缓存的原始详情数据重新应用放电展示配置。
+     * 基于缓存的原始详情数据重新应用详情展示配置。
      *
      * @return 详情页记录头与功耗拆分统计同步刷新，避免切换设置后出现显示不一致
      */
@@ -839,26 +840,42 @@ class HistoryViewModel : ViewModel() {
             mapHistoryRecordForDisplay(it, detailDischargeDisplayPositive)
         }
         _recordDetailPowerUiState.value = rawRecordDetailPowerStats?.let { stats ->
-            mapRecordDetailPowerUiState(stats, detailDischargeDisplayPositive)
+            detail?.type?.let { detailType ->
+                mapRecordDetailPowerUiState(
+                    detailType = detailType,
+                    stats = stats,
+                    dischargeDisplayPositive = detailDischargeDisplayPositive
+                )
+            }
         }
     }
 
     /**
      * 将详情页功耗统计映射为当前显示口径。
      *
+     * @param detailType 当前详情页记录类型
      * @param stats 详情页功耗拆分统计的原始功率值
      * @param dischargeDisplayPositive 是否将放电视为正值
      * @return 返回已经完成正负语义映射、但仍保留原始功率单位的 UI 状态
      */
     private fun mapRecordDetailPowerUiState(
+        detailType: BatteryStatus,
         stats: RecordDetailPowerStats,
         dischargeDisplayPositive: Boolean
     ): RecordDetailPowerUiState {
-        val multiplier = if (dischargeDisplayPositive) -1.0 else 1.0
+        val multiplier = if (
+            detailType == BatteryStatus.Discharging &&
+            dischargeDisplayPositive
+        ) {
+            -1.0
+        } else {
+            1.0
+        }
         return RecordDetailPowerUiState(
             averagePower = stats.averagePowerRaw * multiplier,
             screenOnAveragePower = stats.screenOnAveragePowerRaw?.times(multiplier),
             screenOffAveragePower = stats.screenOffAveragePowerRaw?.times(multiplier),
+            totalTransferredMahBase = stats.totalTransferredMahBaseSigned,
             screenOnConsumedMahBase = stats.screenOnConsumedMahBase,
             screenOffConsumedMahBase = stats.screenOffConsumedMahBase
         )
@@ -974,13 +991,18 @@ class HistoryViewModel : ViewModel() {
      *
      * @param detailType 当前详情页记录类型
      * @param lineRecords 当前详情页对应的有效记录点
-     * @return 放电记录返回功耗拆分统计，其它类型直接返回 null
+     * @return 充电/放电记录都返回详情页统计，其它类型直接返回 null
      */
     private fun buildRecordDetailPowerStats(
         detailType: BatteryStatus,
         lineRecords: List<LineRecord>
     ): RecordDetailPowerStats? {
-        if (detailType != BatteryStatus.Discharging) return null
+        if (
+            detailType != BatteryStatus.Discharging &&
+            detailType != BatteryStatus.Charging
+        ) {
+            return null
+        }
         return RecordDetailPowerStatsComputer.compute(lineRecords)
     }
 

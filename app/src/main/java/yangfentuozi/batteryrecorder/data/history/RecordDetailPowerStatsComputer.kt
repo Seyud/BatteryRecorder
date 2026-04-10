@@ -14,6 +14,7 @@ data class RecordDetailPowerStats(
     val averagePowerRaw: Double,
     val screenOnAveragePowerRaw: Double?,
     val screenOffAveragePowerRaw: Double?,
+    val totalTransferredMahBaseSigned: Double,
     val screenOnConsumedMahBase: Double,
     val screenOffConsumedMahBase: Double
 )
@@ -28,7 +29,7 @@ object RecordDetailPowerStatsComputer {
      * 按记录文件的真实采样区间计算详情页功耗统计。
      *
      * @param records 已通过解析得到的有效记录点列表，要求时间戳按文件原始顺序传入
-     * @return 返回总平均、亮屏平均、息屏平均三项原始功率，以及亮屏/息屏耗电量；若有效区间不足则返回 null
+     * @return 返回总平均、亮屏平均、息屏平均三项原始功率，以及净 mAh 变化量和亮屏/息屏耗电量；若有效区间不足则返回 null
      */
     fun compute(records: List<LineRecord>): RecordDetailPowerStats? {
         if (records.size < 2) return null
@@ -36,6 +37,7 @@ object RecordDetailPowerStatsComputer {
         val currentUnit = inferCurrentUnit(records)
         var totalDurationMs = 0L
         var totalEnergyRawMs = 0.0
+        var totalTransferredMahBaseSigned = 0.0
         var screenOnDurationMs = 0L
         var screenOnEnergyRawMs = 0.0
         var screenOnConsumedMahBase = 0.0
@@ -60,8 +62,15 @@ object RecordDetailPowerStatsComputer {
                 durationMs = durationMs,
                 currentUnit = currentUnit
             )
+            val transferredMahBaseSigned = computeTransferredMahBaseSigned(
+                previousCurrent = previousRecord.current,
+                currentCurrent = current.current,
+                durationMs = durationMs,
+                currentUnit = currentUnit
+            )
             totalDurationMs += durationMs
             totalEnergyRawMs += energyRawMs
+            totalTransferredMahBaseSigned += transferredMahBaseSigned
 
             if (previousRecord.isDisplayOn == 1) {
                 screenOnDurationMs += durationMs
@@ -85,12 +94,13 @@ object RecordDetailPowerStatsComputer {
             screenOffAveragePowerRaw = screenOffDurationMs.takeIf { it > 0L }?.let {
                 screenOffEnergyRawMs / it.toDouble()
             },
+            totalTransferredMahBaseSigned = totalTransferredMahBaseSigned,
             screenOnConsumedMahBase = screenOnConsumedMahBase,
             screenOffConsumedMahBase = screenOffConsumedMahBase
         )
         LoggerX.d(
             TAG,
-            "[记录详情] mAh 统计完成: unit=$currentUnit screenOnMahBase=${stats.screenOnConsumedMahBase} screenOffMahBase=${stats.screenOffConsumedMahBase}"
+            "[记录详情] mAh 统计完成: unit=$currentUnit totalSignedMahBase=${stats.totalTransferredMahBaseSigned} screenOnMahBase=${stats.screenOnConsumedMahBase} screenOffMahBase=${stats.screenOffConsumedMahBase}"
         )
         return stats
     }
@@ -146,6 +156,35 @@ object RecordDetailPowerStatsComputer {
             CurrentUnit.MicroAmpere -> MICROAMPERE_HOUR_DIVISOR
         }
         return averageAbsCurrent * durationMs / divisor
+    }
+
+    /**
+     * 按相邻两点的真实采样区间计算带符号的基础 mAh 变化量。
+     *
+     * 这里保留电流原始符号：
+     * - 正值表示该区间净流入电池
+     * - 负值表示该区间净流出电池
+     *
+     * 充电记录详情页的“电量变化”需要展示净充入量，因此不能沿用绝对值积分。
+     *
+     * @param previousCurrent 区间起点电流
+     * @param currentCurrent 区间终点电流
+     * @param durationMs 区间时长，单位毫秒
+     * @param currentUnit 当前记录文件识别出的电流单位
+     * @return 返回该区间对应的带符号基础 mAh 变化量
+     */
+    private fun computeTransferredMahBaseSigned(
+        previousCurrent: Long,
+        currentCurrent: Long,
+        durationMs: Long,
+        currentUnit: CurrentUnit
+    ): Double {
+        val averageCurrent = (previousCurrent.toDouble() + currentCurrent.toDouble()) * 0.5
+        val divisor = when (currentUnit) {
+            CurrentUnit.MilliAmpere -> MILLIAMPERE_HOUR_DIVISOR
+            CurrentUnit.MicroAmpere -> MICROAMPERE_HOUR_DIVISOR
+        }
+        return averageCurrent * durationMs / divisor
     }
 
     /**
