@@ -876,9 +876,9 @@ class HistoryViewModel : ViewModel() {
             averagePower = stats.averagePowerRaw * multiplier,
             screenOnAveragePower = stats.screenOnAveragePowerRaw?.times(multiplier),
             screenOffAveragePower = stats.screenOffAveragePowerRaw?.times(multiplier),
-            totalTransferredMah = stats.totalTransferredMahBaseSigned * calibrationValue,
-            screenOnConsumedMah = stats.screenOnConsumedMahBase * calibrationMagnitude,
-            screenOffConsumedMah = stats.screenOffConsumedMahBase * calibrationMagnitude
+            totalTransferredMah = stats.netMahBase * calibrationValue,
+            screenOnConsumedMah = stats.screenOnMahBase * calibrationMagnitude,
+            screenOffConsumedMah = stats.screenOffMahBase * calibrationMagnitude
         )
     }
 

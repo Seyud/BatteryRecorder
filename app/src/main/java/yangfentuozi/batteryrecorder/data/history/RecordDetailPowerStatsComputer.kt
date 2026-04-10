@@ -6,13 +6,18 @@ import yangfentuozi.batteryrecorder.shared.util.LoggerX
 private const val TAG = "RecordDetailPowerStats"
 private const val MICROAMPERE_HOUR_DIVISOR = 3_600_000_000.0
 
+/**
+ * 详情页功耗统计结果。
+ *
+ * mAh 字段都表示“校准值为 1 时”的基准积分值，其中 `netMahBase` 保留原始正负号。
+ */
 data class RecordDetailPowerStats(
     val averagePowerRaw: Double,
     val screenOnAveragePowerRaw: Double?,
     val screenOffAveragePowerRaw: Double?,
-    val totalTransferredMahBaseSigned: Double,
-    val screenOnConsumedMahBase: Double,
-    val screenOffConsumedMahBase: Double
+    val netMahBase: Double,
+    val screenOnMahBase: Double,
+    val screenOffMahBase: Double
 )
 
 object RecordDetailPowerStatsComputer {
@@ -28,13 +33,13 @@ object RecordDetailPowerStatsComputer {
 
         var totalDurationMs = 0L
         var totalEnergyRawMs = 0.0
-        var totalTransferredMahBaseSigned = 0.0
+        var netMahBase = 0.0
         var screenOnDurationMs = 0L
         var screenOnEnergyRawMs = 0.0
-        var screenOnConsumedMahBase = 0.0
+        var screenOnMahBase = 0.0
         var screenOffDurationMs = 0L
         var screenOffEnergyRawMs = 0.0
-        var screenOffConsumedMahBase = 0.0
+        var screenOffMahBase = 0.0
 
         var previous: LineRecord? = null
         records.forEach { current ->
@@ -59,18 +64,18 @@ object RecordDetailPowerStatsComputer {
             )
             totalDurationMs += durationMs
             totalEnergyRawMs += energyRawMs
-            totalTransferredMahBaseSigned += transferredMahBaseSigned
+            netMahBase += transferredMahBaseSigned
 
             if (previousRecord.isDisplayOn == 1) {
                 screenOnDurationMs += durationMs
                 screenOnEnergyRawMs += energyRawMs
-                screenOnConsumedMahBase += consumedMahBase
+                screenOnMahBase += consumedMahBase
                 return@forEach
             }
 
             screenOffDurationMs += durationMs
             screenOffEnergyRawMs += energyRawMs
-            screenOffConsumedMahBase += consumedMahBase
+            screenOffMahBase += consumedMahBase
         }
 
         if (totalDurationMs <= 0L) return null
@@ -83,13 +88,13 @@ object RecordDetailPowerStatsComputer {
             screenOffAveragePowerRaw = screenOffDurationMs.takeIf { it > 0L }?.let {
                 screenOffEnergyRawMs / it.toDouble()
             },
-            totalTransferredMahBaseSigned = totalTransferredMahBaseSigned,
-            screenOnConsumedMahBase = screenOnConsumedMahBase,
-            screenOffConsumedMahBase = screenOffConsumedMahBase
+            netMahBase = netMahBase,
+            screenOnMahBase = screenOnMahBase,
+            screenOffMahBase = screenOffMahBase
         )
         LoggerX.d(
             TAG,
-            "[记录详情] mAh 统计完成: totalSignedMahBase=${stats.totalTransferredMahBaseSigned} screenOnMahBase=${stats.screenOnConsumedMahBase} screenOffMahBase=${stats.screenOffConsumedMahBase}"
+            "[记录详情] mAh 统计完成: netMahBase=${stats.netMahBase} screenOnMahBase=${stats.screenOnMahBase} screenOffMahBase=${stats.screenOffMahBase}"
         )
         return stats
     }
