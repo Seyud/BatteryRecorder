@@ -28,6 +28,8 @@ class DumpsysSampler : Sampler {
         LoggerX.d(tag, "init: 启用 Dumpsys 回退采样器")
     }
 
+    private var printedWarning = false
+
     override fun sample(): Sampler.BatteryData {
         val pipe = ParcelFileDescriptor.createPipe()
 
@@ -65,7 +67,10 @@ class DumpsysSampler : Sampler {
                 voltage = result.getOrNull(0) ?: 0
                 temp = (result.getOrNull(1) ?: 0).toInt()
             } catch (e: UnsatisfiedLinkError) {
-                LoggerX.d(tag, "sample: JNI 未加载，回退 Kotlin 解析 dump 输出流", tr = e)
+                if (!printedWarning) {
+                    LoggerX.d(tag, "sample: JNI 未加载，回退 Kotlin 解析 dump 输出流", tr = e)
+                    printedWarning = true
+                }
                 ParcelFileDescriptor.AutoCloseInputStream(readSide).bufferedReader().use { reader ->
                     var line: String?
                     while ((reader.readLine().also { line = it }) != null) {
