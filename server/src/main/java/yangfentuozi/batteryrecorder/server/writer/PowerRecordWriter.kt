@@ -76,16 +76,25 @@ class PowerRecordWriter(
     }
 
     fun write(record: LineRecord): WriteResult {
-        if (lastStatus != record.status) {
+        val statusChanged = lastStatus != record.status
+        if (statusChanged) {
             LoggerX.d(tag, "write: 电池状态切换, $lastStatus -> ${record.status}")
         }
 
         val result = when (record.status) {
             Charging -> {
+                if (statusChanged) {
+                    chargeDataWriter.hasPendingStatusChange = true
+                    chargeDataWriter.lastChangedStatusTime = record.timestamp
+                }
                 chargeDataWriter.write(record)
             }
 
             Discharging -> {
+                if (statusChanged) {
+                    dischargeDataWriter.hasPendingStatusChange = true
+                    dischargeDataWriter.lastChangedStatusTime = record.timestamp
+                }
                 dischargeDataWriter.write(record)
             }
 
@@ -137,7 +146,6 @@ class PowerRecordWriter(
     }
 
     abstract inner class BaseDelayedRecordWriter(val dir: File, statusData: ChildWriterStatusData?) {
-
         private val tag = "BaseDelayedRecordWriter"
 
         @Volatile
@@ -145,9 +153,12 @@ class PowerRecordWriter(
             private set
         private var writer: AdvancedWriter? = null
 
+        @Volatile
+        var hasPendingStatusChange: Boolean = false
+
         protected var startTime: Long = 0L
         protected var lastTime: Long = 0L
-        protected var lastChangedStatusTime = 0L
+        var lastChangedStatusTime = 0L
 
         protected val handler: Handler = Handlers.getHandler("RecorderWritingThread")
 
@@ -184,15 +195,11 @@ class PowerRecordWriter(
 
         fun write(record: LineRecord): WriteResult {
             if (isClosed) return WriteResult.Rejected
-            val justChangedStatus = lastStatus != record.status
+            val justChangedStatus = hasPendingStatusChange
 
             // 选择性丢弃一些干扰数据
-            if (justChangedStatus) lastChangedStatusTime = record.timestamp
             if (record.timestamp - lastChangedStatusTime < 2 * 1000L) {
                 if ((record.power > 0) != (record.status == Discharging)) {
-                    if (justChangedStatus) {
-                        closeCurrentSegment()
-                    }
                     LoggerX.v(this@BaseDelayedRecordWriter.tag, "write: 跳过状态切换瞬时干扰数据, dir=${dir.name}")
                     return WriteResult.Rejected
                 }
@@ -202,6 +209,7 @@ class PowerRecordWriter(
             lastTime = record.timestamp
 
             writer!!.appendLine(record)
+            hasPendingStatusChange = false
 
             if (startedNewSegment) {
                 LoggerX.d(this@BaseDelayedRecordWriter.tag, "write: 新分段已创建, 立即落盘, file=${segmentFile?.name}")
@@ -346,7 +354,8 @@ class PowerRecordWriter(
         return WriterStatusData(
             lastStatus = lastStatus,
             chargeDataWriterStatusData = chargeDataWriter.currWriterStatusAndClose(),
-            dischargeDataWriterStatusData = dischargeDataWriter.currWriterStatusAndClose())
+            dischargeDataWriterStatusData = dischargeDataWriter.currWriterStatusAndClose()
+        )
     }
 
     data class ChildWriterStatusData(

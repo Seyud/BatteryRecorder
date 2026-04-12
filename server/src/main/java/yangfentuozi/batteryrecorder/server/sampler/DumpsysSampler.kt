@@ -10,7 +10,7 @@ import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
 @Keep
-class DumpsysSampler : Sampler {
+class DumpsysSampler : Sampler() {
 
     private val tag = "DumpsysSampler"
 
@@ -30,7 +30,7 @@ class DumpsysSampler : Sampler {
 
     private var printedWarning = false
 
-    override fun sample(): Sampler.BatteryData {
+    override fun sample(): BatteryData {
         val pipe = ParcelFileDescriptor.createPipe()
 
         val readSide = pipe[0]
@@ -104,8 +104,9 @@ class DumpsysSampler : Sampler {
                 }
             }
         }
-        return Sampler.BatteryData(
-            voltage = voltage * 1000, // 修正单位与内核数据一致
+        return BatteryData(
+            // dumpsys 电压一定是 sysfs 电压除以 1000
+            voltage = normalizeVoltageToMicroVolt(voltage * 1000),
             current = current,
             capacity = capacity,
             status = status,
