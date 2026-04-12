@@ -16,8 +16,9 @@ BatteryRecorder 是一个 Android 电池功率记录 App。
 - Root/ADB 启动当前统一通过原生 `libstarter.so` 拉起 `app_process`；root 启动会显式传入 APK 路径，ADB/shell 启动可回退到 `pm path` 解析 APK 路径
 - 采样优先走 JNI sysfs 读取；不可用时回退到 dumpsys/batteryproperties 方案
 - root 模式下主 `Server` 会额外派生独立的 `NotificationServer` 子进程，并通过本地 socket 转发实时通知
+- App 更新时，root 模式 `Server` 会监听 APK sourceDir 变化并自动拉起新的 `libstarter.so`；新旧 `Server` 会尝试交接当前记录写入状态以续接记录
 - 历史数据支持图表查看、应用维度统计、场景维度统计、记录详情统计与续航预测
-- 应用启动阶段还负责首次文档引导与更新检查；更新检查当前支持“稳定版 / 预发布”两种通道；首页同时提供 Root/ADB 启动入口、记录清理与日志导出
+- 应用启动阶段还负责首次文档引导与更新检查；更新检查当前支持“稳定版 / 预发布”两种通道，更新弹窗支持浏览器打开或走系统 `DownloadManager` 下载安装；首页同时提供 Root/ADB 启动入口、记录清理与日志导出
 
 ## 构建约束
 
@@ -84,6 +85,8 @@ App 进程 (UI)  <->  AIDL Binder  <->  Server 进程 (root/shell)
 - 首页 Root 启动、开机 ROOT 自启动、ADB 引导当前都统一指向 `libstarter.so`
 - `RootServerStarter` 会构造 `libstarter.so --apk=<sourceDir>` 命令；ADB 引导文案默认展示直接执行 `libstarter.so` 的命令
 - `starter.cpp` 负责校验调用 UID、解析 APK 路径、设置 `CLASSPATH`，再用 `app_process` 拉起 `yangfentuozi.batteryrecorder.server.Main`
+- `Server` 初始化时会启动 `AppSourceDirObserver` 监听 `Global.appSourceDir`；检测到 APK 更新后会直接拉起新 `libstarter.so`，检测到卸载则退出当前服务
+- 新旧 `Server` 之间会通过 `BatteryRecorder_Server` 本地 socket 交接 `PowerRecordWriter.WriterStatusData`；旧进程在退出前发送当前 writer 状态，新进程启动后优先尝试续接原分段文件
 - root 模式下，`Server` 初始化时会创建 `ChildServerBridge`，再派生 `NotificationServer`
 - `NotificationServer` 启动后会降权到 shell uid 2000，等待 `notification` / `activity` 服务可用，并用 `LocalServerSocket` 接收主 `Server` 发来的通知流
 - 主 `Server` 通过 `RemoteNotificationUtil` 写 socket；子进程通过 `LocalNotificationUtil` + `FakeContext` 真正下发系统通知
@@ -99,7 +102,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - `SysfsSampler` 负责加载 JNI 动态库并读取 `/sys/class/power_supply/battery/`
 - `DumpsysSampler` 是 sysfs/JNI 不可用时的回退实现，JNI 侧同时依赖 `dump_parser.cpp`
 - `Monitor` 按配置间隔循环采样，并监听前台应用与屏幕状态
-- `PowerRecordWriter` 分充电/放电两路写入 CSV，支持批量缓冲、延迟 flush、分段落盘
+- `PowerRecordWriter` 分充电/放电两路写入 CSV，支持批量缓冲、延迟 flush、分段落盘，以及基于 `WriterStatusData` 的跨进程续接
 - 当前记录格式：
   `timestamp,power,packageName,capacity,isDisplayOn,status,temp,voltage,current`
 
@@ -127,6 +130,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - 首页支持 Root 启动卡片、ADB 引导、记录清理、日志导出、关于弹窗、首次文档引导与启动更新检查
 - 启动更新检查由 `BatteryRecorderApp` 直接触发；稳定版通道走 GitHub `releases/latest`，预发布通道走 `releases` 列表并取最新非 draft 发布，因此向下兼容稳定版
 - 更新弹窗由 `ui/dialog/home/UpdateDialog.kt` 渲染，版本信息会附带当前通道标识
+- 更新弹窗支持“浏览器打开”和“直接下载”两条路径；直接下载走 `AppDownloader` + `DownloadManager`，并通过 `FileProvider` 与下载完成广播触发安装
 
 ### UI 沉浸与 Insets 链路
 
@@ -146,10 +150,13 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - 详情页同时支持：
   - 原始/趋势/隐藏三种功率曲线模式
   - 电量/温度/应用图标显隐切换
+  - 选中点显示绝对时间，以及精确到秒的相对时间
   - 图表说明弹窗
   - 单记录导出
   - 单记录删除
   - 应用维度详情统计
+  - 充电记录在稳定阶段检测到负功率后切换为双向功率轴
+  - 充电记录额外展示电量变化 `% + mAh`
 
 ### 应用预测详情链路
 
@@ -175,11 +182,15 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - 趋势点必须基于**过滤后的展示点**重新分桶
 - 分桶结果取中位数作为趋势功率值
 - 平滑绘制是图表层职责，不在仓库层落地“平滑后数据”
+- 充电详情默认使用正向功率轴；只有越过前 10% 预热区后仍检测到负功率，才切换为双向功率轴
+- 双向功率轴的负半轴当前只在 `-5W` 与 `-10W` 两档之间切换，不跟随真实极值继续扩张
+- 图表选中点信息需要同时展示绝对时间与精确到秒的相对时间
 
 ### 记录详情统计
 
 - `RecordAppStatsComputer` 负责单条放电记录内的应用维度统计
 - `RecordDetailPowerStatsComputer` 负责记录详情页平均功耗统计
+- `RecordDetailPowerStatsComputer` 当前还负责基于电流积分计算带符号的 `totalTransferredMahBaseSigned`，供充电详情页展示净充入 `mAh`
 - 记录详情缓存命中时，必须校验缓存内 `sourceLastModified` 与源文件 `lastModified()` 一致
 
 ### 图标缓存
@@ -313,6 +324,7 @@ app/src/main/java/yangfentuozi/batteryrecorder/
 │       └── PowerDisplayMapper.kt
 └── utils/
     ├── AppIconMemoryCache.kt
+    ├── AppDownloader.kt
     ├── FormatUtil.kt
     └── UpdateUtil.kt
 ```
@@ -323,6 +335,7 @@ app/src/main/java/yangfentuozi/batteryrecorder/
 server/src/main/
 ├── aidl/
 ├── java/yangfentuozi/batteryrecorder/server/
+│   ├── AppSourceDirObserver.kt
 │   ├── BinderSender.kt
 │   ├── Global.kt
 │   ├── Main.kt
@@ -345,6 +358,10 @@ server/src/main/
 │   │   ├── Sampler.kt
 │   │   ├── SysfsSampler.kt
 │   │   └── DumpsysSampler.kt
+│   ├── stream/
+│   │   ├── StreamProtocol.kt
+│   │   ├── StreamReader.kt
+│   │   └── StreamWriter.kt
 │   └── writer/
 │       └── PowerRecordWriter.kt
 └── jni/
@@ -426,10 +443,12 @@ shared/src/main/
 | 日志导出                      | `app/.../data/log/LogRepository.kt`                                                                |
 | 图表组件                      | `app/.../ui/components/charts/PowerCapacityChart.kt`                                               |
 | 图标缓存                      | `app/.../utils/AppIconMemoryCache.kt`                                                              |
+| 更新下载/安装                    | `app/.../utils/AppDownloader.kt`                                                                   |
 | 功率换算/格式化                  | `app/.../utils/FormatUtil.kt`                                                                      |
 | 更新检查工具（对象名 `UpdateUtils`） | `app/.../utils/UpdateUtil.kt`                                                                      |
 | 更新通道展示映射                    | `app/.../ui/model/UpdateChannelDisplayName.kt`                                                    |
 | Server 进程入口               | `server/.../Main.kt`                                                                               |
+| App 更新监听与自动重启              | `server/.../AppSourceDirObserver.kt`, `server/.../Server.kt`                                      |
 | Server Binder 实现          | `server/.../Server.kt`                                                                             |
 | Binder 重推链路                | `server/.../BinderSender.kt`                                                                       |
 | 通知子进程桥接                    | `server/.../notification/server/ChildServerBridge.kt`                                              |
@@ -440,6 +459,7 @@ shared/src/main/
 | 采样抽象                      | `server/.../sampler/Sampler.kt`                                                                    |
 | sysfs/JNI 采样              | `server/.../sampler/SysfsSampler.kt`                                                               |
 | dumpsys 回退采样              | `server/.../sampler/DumpsysSampler.kt`                                                             |
+| Server 状态续接协议               | `server/.../stream/StreamProtocol.kt`, `StreamReader.kt`, `StreamWriter.kt`                       |
 | 写文件                       | `server/.../writer/PowerRecordWriter.kt`                                                           |
 | JNI 原生代码                  | `server/src/main/jni/power_reader.cpp`, `server/src/main/jni/dump_parser.cpp`, `server/src/main/jni/starter.cpp` |
 | AIDL 接口                   | `server/src/main/aidl/`                                                                            |
@@ -468,6 +488,8 @@ shared/src/main/
 - 页面级沉浸规则是：`Scaffold` 只吃顶部/水平安全区，底部手势区由内容层自行处理
 - 页面外层 margin 当前统一按 16.dp 收敛；若看到 24.dp，需要先确认那是不是组件内部排版或图表绘制留白，而不是页面 margin
 - ROOT 启动统一经过 `RootServerStarter.start(context, source)`
+- root 模式下 `Server` 会启动 `AppSourceDirObserver` 监听 APK 路径变化；修改启动/更新链路时必须同时检查自动重启与卸载退出行为
+- App 更新后的自动续接记录依赖 `server/stream/*` 与 `PowerRecordWriter.WriterStatusData`；修改当前记录分段、关闭逻辑或 writer 状态字段时必须同步检查这条交接链路
 - root 模式下主 `Server` 会派生 `NotificationServer` 子进程处理通知；通知相关改动必须同时检查 `ChildServerBridge`、socket 协议与 `LocalNotificationUtil`
 - `NotificationServer` 依赖 `FakeContext` 获取可用 `Context` 与外部 Provider；修改通知链路时不要假设它运行在常规 Android `Application` 环境中
 - `LocalNotificationUtil` 当前通过复用 `Notification.Builder` 承担通知更新的性能优化；修改通知字段时不要无意退回到“每次更新都新建 Builder”的实现
@@ -475,6 +497,7 @@ shared/src/main/
 - 当前设置系统按 `AppSettings`、`StatisticsSettings`、`ServerSettings` 分层；`SharedSettings.kt` 负责三类设置的 SharedPreferences 读写，以及 `logLevel` 编解码
 - `ServerSettings` 当前同时承载服务端运行参数与功率展示共用配置；`notificationEnabled`、`dualCellEnabled`、`calibrationValue` 都属于 `ServerSettings`，其中后两者由 App 展示侧直接复用
 - 更新检测通道属于 `AppSettings`，当前字段为 `AppSettings.updateChannel`，使用 `UpdateChannel` 枚举持久化
+- 更新下载链路当前通过 `AppDownloader` 统一封装；若修改更新安装流程，必须同时检查 `UpdateDialog`、`DownloadManager`、安装未知来源权限、下载完成广播与 `FileProvider`
 - 设置页“常规”分组当前同时包含“启动时检测更新”开关与“版本类型”菜单项；“版本类型”右侧显示当前通道，点击后弹出 `DropdownMenu`
 - 当前预测设置已收敛到 `StatisticsSettings.predWeightedAlgorithmEnabled` 与 `StatisticsSettings.predWeightedAlgorithmAlphaMaxX100`
 - `SharedSettings.readStatisticsSettings(...)` 当前只读取新 key，不再兼容旧的 `pred_current_session_weight_enabled`
