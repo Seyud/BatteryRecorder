@@ -5,8 +5,6 @@ import java.io.File
 
 object RecordFileParser {
     private const val TAG = "RecordFileParser"
-    private const val TIMESTAMP_LENGTH = 13
-    private const val RECORD_COLUMN_COUNT = 8
 
     fun parseToList(file: File): List<LineRecord> {
         val records = mutableListOf<LineRecord>()
@@ -40,17 +38,17 @@ object RecordFileParser {
                 if (line.isEmpty()) return@forEach
 
                 val parts = line.split(",")
-                if (parts.size < RECORD_COLUMN_COUNT) {
+                if (parts.size != LineRecord.PERSISTED_COLUMN_COUNT) {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
-                        reason = "字段数量不足: ${parts.size}"
+                        reason = "字段数量不匹配: ${parts.size}"
                     )
                     return@forEach
                 }
 
                 val timestampValue = parts[0]
-                if (timestampValue.length != TIMESTAMP_LENGTH) {
+                if (timestampValue.length != LineRecord.PERSISTED_TIMESTAMP_LENGTH) {
                     logInvalidLine(
                         file = file,
                         lineNumber = lineNumber,
