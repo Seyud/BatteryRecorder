@@ -19,13 +19,13 @@ data class LineRecord(
     val status: BatteryStatus,
     /** 电池温度，沿用系统原始单位。 */
     val temp: Int,
-    /** 电池电压，单位微伏。 */
+    /** 运行时电池电压，单位微伏；记录文件落盘时会转换为毫伏。 */
     val voltage: Long,
     /** 电池电流，单位微安。 */
     val current: Long
 ) : Parcelable {
     override fun toString(): String {
-        return "$timestamp,$power,$packageName,$capacity,$isDisplayOn,$temp,$voltage,$current"
+        return "$timestamp,$power,$packageName,$capacity,$isDisplayOn,$temp,${toPersistedVoltageMv(voltage)},$current"
     }
 
     companion object {
@@ -33,6 +33,8 @@ data class LineRecord(
         const val PERSISTED_COLUMN_COUNT = 8
         /** 当前记录文件时间戳字段的固定长度。 */
         const val PERSISTED_TIMESTAMP_LENGTH = 13
+        /** 旧版记录文件使用 uV 落盘时的最小合理阈值。 */
+        private const val LEGACY_PERSISTED_VOLTAGE_MIN_UV = 100_000L
 
         /** 落盘格式中的时间戳列索引。 */
         private const val TIMESTAMP_INDEX = 0
@@ -63,7 +65,7 @@ data class LineRecord(
         /**
          * 从已经拆分好的字段列表解析出 `LineRecord`。
          *
-         * 当前只接受最新的 8 列落盘格式；旧格式与损坏记录统一返回 `null`。
+         * 当前只接受 8 列落盘格式；电压列优先按新版 mV 解析，同时兼容旧版 uV。
          *
          * @param parts 已按逗号拆分的字段列表。
          * @return 解析成功返回 `LineRecord`，否则返回 `null`。
@@ -77,11 +79,39 @@ data class LineRecord(
             val capacity = parts[CAPACITY_INDEX].toIntOrNull() ?: return null
             val isDisplayOn = parts[DISPLAY_ON_INDEX].toIntOrNull() ?: return null
             val temp = parts[TEMP_INDEX].toIntOrNull() ?: return null
-            val voltage = parts[VOLTAGE_INDEX].toLongOrNull() ?: return null
+            val voltage = fromPersistedVoltage(parts[VOLTAGE_INDEX].toLongOrNull() ?: return null)
             val current = parts[CURRENT_INDEX].toLongOrNull() ?: return null
             return LineRecord(
                 timestamp, power, packageName, capacity, isDisplayOn, BatteryStatus.Unknown, temp, voltage, current
             )
+        }
+
+        /**
+         * 将运行时统一使用的微伏电压转换为记录文件中的毫伏值。
+         *
+         * @param voltageUv 运行时电压，单位微伏。
+         * @return 返回写入记录文件的毫伏值；非正数直接原样返回。
+         */
+        private fun toPersistedVoltageMv(voltageUv: Long): Long {
+            if (voltageUv <= 0L) return voltageUv
+            return voltageUv / 1000L
+        }
+
+        /**
+         * 将记录文件中的电压字段还原为运行时统一使用的微伏值。
+         *
+         * TODO: 后续移除旧版 uV 落盘兼容分支，统一只接受 mV。
+         *
+         * @param persistedVoltage 记录文件中的原始电压字段。
+         * @return 返回运行时统一使用的微伏值；非正数直接原样返回。
+         */
+        private fun fromPersistedVoltage(persistedVoltage: Long): Long {
+            if (persistedVoltage <= 0L) return persistedVoltage
+            return if (persistedVoltage >= LEGACY_PERSISTED_VOLTAGE_MIN_UV) {
+                persistedVoltage
+            } else {
+                persistedVoltage * 1000L
+            }
         }
     }
 }

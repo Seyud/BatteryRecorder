@@ -105,6 +105,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - `PowerRecordWriter` 分充电/放电两路写入 CSV，支持批量缓冲、延迟 flush、分段落盘，以及基于 `WriterStatusData` 的跨进程续接
 - 当前记录格式：
   `timestamp,power,packageName,capacity,isDisplayOn,temp,voltage,current`
+- 其中 `voltage` 列落盘单位为 4 位 `mV`；运行时 `LineRecord.voltage` 仍统一使用 `uV`
 - `LineRecord.status` 当前只用于运行时采样链路，不参与记录文件落盘；记录文件语义由目录类型（charge/discharge）与 8 列 CSV 本身共同决定
 
 ### 数据同步链路
