@@ -86,6 +86,7 @@ import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
 import yangfentuozi.batteryrecorder.utils.AppIconMemoryCache
 import yangfentuozi.batteryrecorder.utils.batteryRecorderScaffoldInsets
 import yangfentuozi.batteryrecorder.utils.computeEnergyWh
+import yangfentuozi.batteryrecorder.utils.formatEnergyForDischargeDetail
 import yangfentuozi.batteryrecorder.utils.formatDateTime
 import yangfentuozi.batteryrecorder.utils.formatDetailDuration
 import yangfentuozi.batteryrecorder.utils.formatDurationHours
@@ -120,6 +121,7 @@ fun RecordDetailScreen(
     val recordDetailPowerUiState by viewModel.recordDetailPowerUiState.collectAsState()
     val isRecordChartLoading by viewModel.isRecordChartLoading.collectAsState()
     val userMessage by viewModel.userMessage.collectAsState()
+    val appSettings by settingsViewModel.appSettings.collectAsState()
     val dualCellEnabled by settingsViewModel.dualCellEnabled.collectAsState()
     val dischargeDisplayPositive by settingsViewModel.dischargeDisplayPositive.collectAsState()
     val calibrationValue by settingsViewModel.calibrationValue.collectAsState()
@@ -253,6 +255,8 @@ fun RecordDetailScreen(
         val durationMs = stats?.let { it.endTime - it.startTime }
         val capacityChange = recordDetailPowerUiState?.capacityChange
         val detailType = detailState?.type ?: recordsFile.type
+        val useMahForDischargeDetail =
+            detailState?.type == BatteryStatus.Discharging && appSettings.dischargeDetailUseMah
         val typeLabel = if (detailType == BatteryStatus.Charging) {
             stringResource(R.string.history_record_type_charging)
         } else {
@@ -483,7 +487,11 @@ fun RecordDetailScreen(
                                 val screenOnText = if (detailState.type != BatteryStatus.Charging) {
                                     recordDetailPowerUiState?.let { powerUiState ->
                                         "$screenOnDurationText - ${
-                                            String.format(locale, "%.3fWh", powerUiState.screenOnConsumedWh)
+                                            formatEnergyForDischargeDetail(
+                                                locale = locale,
+                                                energyWh = powerUiState.screenOnConsumedWh,
+                                                useMah = useMahForDischargeDetail
+                                            )
                                         } (${powerUiState.capacityChange.screenOnPercent}%)"
                                     } ?: screenOnDurationText
                                 } else {
@@ -494,7 +502,11 @@ fun RecordDetailScreen(
                                 val screenOffText = if (detailState.type != BatteryStatus.Charging) {
                                     recordDetailPowerUiState?.let { powerUiState ->
                                         "$screenOffDurationText - ${
-                                            String.format(locale, "%.3fWh", powerUiState.screenOffConsumedWh)
+                                            formatEnergyForDischargeDetail(
+                                                locale = locale,
+                                                energyWh = powerUiState.screenOffConsumedWh,
+                                                useMah = useMahForDischargeDetail
+                                            )
                                         } (${powerUiState.capacityChange.screenOffPercent}%)"
                                     } ?: screenOffDurationText
                                 } else {

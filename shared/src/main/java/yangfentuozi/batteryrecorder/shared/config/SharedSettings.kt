@@ -46,6 +46,7 @@ object SharedSettings {
             checkUpdateOnStartup = SettingsConstants.checkUpdateOnStartup.readFromSP(prefs),
             updateChannel = SettingsConstants.updateChannel.readFromSP(prefs),
             dischargeDisplayPositive = SettingsConstants.dischargeDisplayPositive.readFromSP(prefs),
+            dischargeDetailUseMah = SettingsConstants.dischargeDetailUseMah.readFromSP(prefs),
             rootBootAutoStartEnabled = SettingsConstants.rootBootAutoStartEnabled.readFromSP(prefs)
         )
 
@@ -116,6 +117,7 @@ object SharedSettings {
         SettingsConstants.checkUpdateOnStartup.writeToSP(this, settings.checkUpdateOnStartup)
         SettingsConstants.updateChannel.writeToSP(this, settings.updateChannel)
         SettingsConstants.dischargeDisplayPositive.writeToSP(this, settings.dischargeDisplayPositive)
+        SettingsConstants.dischargeDetailUseMah.writeToSP(this, settings.dischargeDetailUseMah)
         SettingsConstants.rootBootAutoStartEnabled.writeToSP(this, settings.rootBootAutoStartEnabled)
     }
 

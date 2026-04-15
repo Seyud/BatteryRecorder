@@ -87,6 +87,8 @@
     <string name="settings_update_channel">Update channel</string>
     <string name="settings_dual_cell">Dual-cell series</string>
     <string name="settings_discharge_positive">Show discharge as positive</string>
+    <string name="settings_discharge_detail_use_mah">Use mAh instead of Wh</string>
+    <string name="settings_discharge_detail_use_mah_summary">Only affects energy display on discharge record details</string>
     <string name="settings_calibration_title">Current unit calibration</string>
     <string name="settings_calibration_summary">Adjust the multiplier of current readings</string>
     <string name="settings_root_boot_autostart">Auto start on boot (ROOT)</string>
@@ -126,6 +128,9 @@
     <string name="dialog_calibration_hint">Charging should be positive, discharging should be negative</string>
     <string name="dialog_calibration_empty">Displays as --W</string>
     <string name="dialog_calibration_start_service">Please start the service first</string>
+    <string name="dialog_discharge_detail_energy_unit_title">Switch to mAh display?</string>
+    <string name="dialog_discharge_detail_energy_unit_message">Wh directly represents energy and is better for side-by-side comparison. mAh depends on battery voltage, so the same mAh can represent different amounts of energy at different voltages. When enabled, discharge record details will convert Wh to mAh using 3.85V. This only changes the display unit and does not affect records or statistics.</string>
+    <string name="dialog_discharge_detail_energy_unit_confirm">Enable anyway</string>
     <string name="dialog_scene_stats_recent_file_count_title">Sample count</string>
     <string name="dialog_weighted_algorithm_title">Weight strength</string>
     <string name="dialog_log_level_title">Log level</string>

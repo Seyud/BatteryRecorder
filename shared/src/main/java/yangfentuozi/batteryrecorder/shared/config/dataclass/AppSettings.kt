@@ -14,6 +14,8 @@ data class AppSettings(
     val updateChannel: UpdateChannel = SettingsConstants.updateChannel.def,
     /** 放电记录在 UI 中是否显示为正值。 */
     val dischargeDisplayPositive: Boolean = SettingsConstants.dischargeDisplayPositive.def,
+    /** 放电详情页能量单位是否显示为 mAh。 */
+    val dischargeDetailUseMah: Boolean = SettingsConstants.dischargeDetailUseMah.def,
     /** 开机后是否尝试 ROOT 自启动。 */
     val rootBootAutoStartEnabled: Boolean = SettingsConstants.rootBootAutoStartEnabled.def
 )

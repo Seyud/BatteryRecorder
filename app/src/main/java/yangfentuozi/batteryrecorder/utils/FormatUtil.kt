@@ -8,6 +8,7 @@ import java.util.Locale
 
 const val POWER_SCALE_DIVISOR = 1_000_000_000_000.0
 private const val MILLISECONDS_PER_HOUR = 3_600_000.0
+private const val DISCHARGE_DETAIL_MAH_VOLTAGE = 3.85
 
 /**
  * 将毫秒时长格式化为小时分钟字符串
@@ -95,6 +96,34 @@ fun computeEnergyWh(
         dualCellEnabled = dualCellEnabled,
         calibrationValue = calibrationValue
     ) * (durationMs.toDouble() / MILLISECONDS_PER_HOUR)
+}
+
+/**
+ * 将放电详情页里的 Wh 固定按 3.85V 换算为 mAh。
+ *
+ * @param energyWh 详情页当前展示口径下的能量值，单位为 Wh。
+ * @return 换算后的 mAh 数值。
+ */
+fun convertWhToMah(energyWh: Double): Double = energyWh / DISCHARGE_DETAIL_MAH_VOLTAGE * 1000.0
+
+/**
+ * 按放电详情页当前选择的能量单位格式化文本。
+ *
+ * @param locale 当前界面使用的区域设置，用于保持数字格式一致。
+ * @param energyWh 以 Wh 表示的能量值。
+ * @param useMah `true` 时格式化为整数 mAh；否则保持三位小数 Wh。
+ * @return 用于详情页展示的能量字符串。
+ */
+fun formatEnergyForDischargeDetail(
+    locale: Locale,
+    energyWh: Double,
+    useMah: Boolean
+): String {
+    return if (useMah) {
+        String.format(locale, "%.0fmAh", convertWhToMah(energyWh))
+    } else {
+        String.format(locale, "%.3fWh", energyWh)
+    }
 }
 
 fun formatVoltageFromMillivolt(voltageMv: Int): String {

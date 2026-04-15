@@ -161,6 +161,15 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
+    fun setDischargeDetailUseMahEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.edit {
+                SettingsConstants.dischargeDetailUseMah.writeToSP(this, enabled)
+            }
+            _appSettings.value = _appSettings.value.copy(dischargeDetailUseMah = enabled)
+        }
+    }
+
     fun setCalibrationValue(value: Int) {
         val finalValue = SettingsConstants.calibrationValue.coerce(value)
         updateServerSettings(

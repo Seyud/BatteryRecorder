@@ -126,6 +126,13 @@ object SettingsConstants {
             def = true
         )
 
+    /** 放电详情页能量显示改用 mAh 而不是 Wh。 */
+    val dischargeDetailUseMah =
+        BooleanConfigItem(
+            key = "discharge_detail_use_mah",
+            def = false
+        )
+
     /** 游戏 App 包名列表（高负载排除） */
     val gamePackages =
         StringSetConfigItem(

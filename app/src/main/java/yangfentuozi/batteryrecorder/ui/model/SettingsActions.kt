@@ -6,6 +6,7 @@ import yangfentuozi.batteryrecorder.shared.util.LoggerX
 data class CalibrationActions(
     val setDualCellEnabled: (Boolean) -> Unit,
     val setDischargeDisplayPositiveEnabled: (Boolean) -> Unit,
+    val setDischargeDetailUseMahEnabled: (Boolean) -> Unit,
     val setCalibrationValue: (Int) -> Unit
 )
 

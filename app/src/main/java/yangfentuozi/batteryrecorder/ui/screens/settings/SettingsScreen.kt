@@ -56,6 +56,7 @@ fun SettingsScreen(
             calibration = CalibrationActions(
                 setDualCellEnabled = settingsViewModel::setDualCellEnabled,
                 setDischargeDisplayPositiveEnabled = settingsViewModel::setDischargeDisplayPositiveEnabled,
+                setDischargeDetailUseMahEnabled = settingsViewModel::setDischargeDetailUseMahEnabled,
                 setCalibrationValue = settingsViewModel::setCalibrationValue
             ),
             server = ServerActions(
@@ -91,6 +92,7 @@ fun SettingsScreen(
             checkUpdateOnStartup = appSettings.checkUpdateOnStartup,
             updateChannel = appSettings.updateChannel,
             dischargeDisplayPositive = appSettings.dischargeDisplayPositive,
+            dischargeDetailUseMah = appSettings.dischargeDetailUseMah,
             notificationEnabled = serverSettings.notificationEnabled,
             notificationCompatModeEnabled = serverSettings.notificationCompatModeEnabled,
             dualCellEnabled = serverSettings.dualCellEnabled,

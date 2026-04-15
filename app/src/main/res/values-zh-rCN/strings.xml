@@ -87,6 +87,8 @@
     <string name="settings_update_channel">版本更新通道</string>
     <string name="settings_dual_cell">串联双电芯</string>
     <string name="settings_discharge_positive">放电也显示正值</string>
+    <string name="settings_discharge_detail_use_mah">使用 mAh 而非 Wh</string>
+    <string name="settings_discharge_detail_use_mah_summary">仅影响放电详情页能量显示</string>
     <string name="settings_calibration_title">电流单位校准</string>
     <string name="settings_calibration_summary">调整电流读数的倍率</string>
     <string name="settings_root_boot_autostart">开机自启（ROOT）</string>
@@ -126,6 +128,9 @@
     <string name="dialog_calibration_hint">充电应显示为正数，放电应显示为负数</string>
     <string name="dialog_calibration_empty">显示为 --W</string>
     <string name="dialog_calibration_start_service">请启动服务</string>
+    <string name="dialog_discharge_detail_energy_unit_title">切换为 mAh 显示？</string>
+    <string name="dialog_discharge_detail_energy_unit_message">Wh（瓦时）直接表示能量，更适合横向比较。mAh（毫安时）依赖电池电压，同样的 mAh 在不同电压下代表的能量并不相同。开启后，放电详情会按 3.85V 将 Wh 换算为 mAh。</string>
+    <string name="dialog_discharge_detail_energy_unit_confirm">继续开启</string>
     <string name="dialog_scene_stats_recent_file_count_title">样本次数</string>
     <string name="dialog_weighted_algorithm_title">加权强度</string>
     <string name="dialog_log_level_title">日志级别</string>

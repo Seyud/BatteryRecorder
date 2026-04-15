@@ -1,9 +1,10 @@
 package yangfentuozi.batteryrecorder.ui.components.global
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun M3ESwitchWidget(
     text: String,
+    summary: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true,
@@ -39,14 +41,22 @@ fun M3ESwitchWidget(
             }
             .fillMaxWidth()
             .padding(horizontal = 36.dp)
-            .height(72.dp),
+            .heightIn(min = 72.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            if (!summary.isNullOrBlank()) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Switch(
             enabled = enabled,
             checked = checked,

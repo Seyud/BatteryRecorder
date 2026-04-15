@@ -22,6 +22,7 @@ import yangfentuozi.batteryrecorder.ui.components.global.M3ESwitchWidget
 import yangfentuozi.batteryrecorder.ui.components.global.SplicedColumnGroup
 import yangfentuozi.batteryrecorder.ui.components.settings.SettingsItem
 import yangfentuozi.batteryrecorder.ui.dialog.settings.CalibrationDialog
+import yangfentuozi.batteryrecorder.ui.dialog.settings.DischargeDetailEnergyUnitDialog
 import yangfentuozi.batteryrecorder.ui.model.SettingsUiProps
 import yangfentuozi.batteryrecorder.ui.model.displayName
 import yangfentuozi.batteryrecorder.ui.theme.AppShape
@@ -36,6 +37,7 @@ fun CalibrationSection(
     val actions = props.actions.calibration
     var showDialog by remember { mutableStateOf(false) }
     var showUpdateChannelMenu by remember { mutableStateOf(false) }
+    var showDischargeDetailEnergyUnitDialog by remember { mutableStateOf(false) }
 
     SplicedColumnGroup(
         title = stringResource(R.string.settings_section_general),
@@ -100,6 +102,20 @@ fun CalibrationSection(
         }
 
         item {
+            M3ESwitchWidget(
+                text = stringResource(R.string.settings_discharge_detail_use_mah),
+                checked = state.dischargeDetailUseMah,
+                onCheckedChange = { enabled ->
+                    if (!state.dischargeDetailUseMah && enabled) {
+                        showDischargeDetailEnergyUnitDialog = true
+                    } else {
+                        actions.setDischargeDetailUseMahEnabled(enabled)
+                    }
+                }
+            )
+        }
+
+        item {
             SettingsItem(
                 title = stringResource(R.string.settings_calibration_title),
                 summary = stringResource(R.string.settings_calibration_summary)
@@ -120,6 +136,16 @@ fun CalibrationSection(
             onReset = {
                 actions.setCalibrationValue(SettingsConstants.calibrationValue.def)
                 showDialog = false
+            }
+        )
+    }
+
+    if (showDischargeDetailEnergyUnitDialog) {
+        DischargeDetailEnergyUnitDialog(
+            onDismiss = { showDischargeDetailEnergyUnitDialog = false },
+            onConfirm = {
+                actions.setDischargeDetailUseMahEnabled(true)
+                showDischargeDetailEnergyUnitDialog = false
             }
         )
     }
