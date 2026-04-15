@@ -28,8 +28,10 @@ import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.LineRecord
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
+import yangfentuozi.batteryrecorder.utils.computeEnergyWh
 import yangfentuozi.batteryrecorder.utils.computePowerW
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToLong
 
 private const val TAG = "HistoryViewModel"
@@ -60,9 +62,9 @@ data class RecordDetailPowerUiState(
     val averagePower: Double,
     val screenOnAveragePower: Double?,
     val screenOffAveragePower: Double?,
-    val totalTransferredMah: Double,
-    val screenOnConsumedMah: Double,
-    val screenOffConsumedMah: Double,
+    val totalTransferredWh: Double,
+    val screenOnConsumedWh: Double,
+    val screenOffConsumedWh: Double,
     val capacityChange: CapacityChange
 )
 
@@ -873,14 +875,32 @@ class HistoryViewModel : ViewModel() {
         } else {
             1.0
         }
-        val calibrationMagnitude = kotlin.math.abs(calibrationValue.toDouble())
         return RecordDetailPowerUiState(
             averagePower = stats.averagePowerRaw * multiplier,
             screenOnAveragePower = stats.screenOnAveragePowerRaw?.times(multiplier),
             screenOffAveragePower = stats.screenOffAveragePowerRaw?.times(multiplier),
-            totalTransferredMah = stats.netMahBase * calibrationValue,
-            screenOnConsumedMah = stats.screenOnMahBase * calibrationMagnitude,
-            screenOffConsumedMah = stats.screenOffMahBase * calibrationMagnitude,
+            totalTransferredWh = computeEnergyWh(
+                rawPower = stats.averagePowerRaw,
+                durationMs = stats.totalDurationMs,
+                dualCellEnabled = dualCellEnabled,
+                calibrationValue = calibrationValue
+            ),
+            screenOnConsumedWh = stats.screenOnAveragePowerRaw?.let { screenOnAveragePowerRaw ->
+                computeEnergyWh(
+                    rawPower = screenOnAveragePowerRaw * multiplier,
+                    durationMs = stats.screenOnDurationMs,
+                    dualCellEnabled = dualCellEnabled,
+                    calibrationValue = calibrationValue
+                )
+            }?.let(::abs) ?: 0.0,
+            screenOffConsumedWh = stats.screenOffAveragePowerRaw?.let { screenOffAveragePowerRaw ->
+                computeEnergyWh(
+                    rawPower = screenOffAveragePowerRaw * multiplier,
+                    durationMs = stats.screenOffDurationMs,
+                    dualCellEnabled = dualCellEnabled,
+                    calibrationValue = calibrationValue
+                )
+            }?.let(::abs) ?: 0.0,
             capacityChange = stats.capacityChange
         )
     }

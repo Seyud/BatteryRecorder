@@ -68,10 +68,10 @@ import yangfentuozi.batteryrecorder.ui.theme.AppShape
 import yangfentuozi.batteryrecorder.ui.viewmodel.MainViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
 import yangfentuozi.batteryrecorder.utils.batteryRecorderScaffoldInsets
+import yangfentuozi.batteryrecorder.utils.formatVoltageFromMillivolt
 import yangfentuozi.batteryrecorder.utils.navigationBarBottomPadding
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val TAG = "HomeScreen"
@@ -194,13 +194,7 @@ fun HomeScreen(
     ObserveHomeBatteryInfo(context = context) { batteryInfo ->
         currentCapacityPercent = batteryInfo.capacityPercent
         currentVoltageRaw = batteryInfo.rawVoltage
-        val displayVoltageText = batteryInfo.rawVoltage?.let { rawVoltage ->
-            if (rawVoltage in 1..20) {
-                "$rawVoltage V"
-            } else {
-                String.format(Locale.getDefault(), "%.2f V", rawVoltage / 1000.0)
-            }
-        }
+        val displayVoltageText = batteryInfo.rawVoltage?.let(::formatVoltageFromMillivolt)
         LoggerX.d(
             TAG,
             "[首页电压] raw=${batteryInfo.rawVoltage} display=$displayVoltageText"

@@ -158,7 +158,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
   - 单记录删除
   - 应用维度详情统计
   - 充电记录在稳定阶段检测到负功率后切换为双向功率轴
-  - 充电记录额外展示电量变化 `% + mAh`
+- 充电记录额外展示电量变化 `% + Wh`
 
 ### 应用预测详情链路
 
@@ -192,7 +192,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 
 - `RecordAppStatsComputer` 负责单条放电记录内的应用维度统计
 - `RecordDetailPowerStatsComputer` 负责记录详情页平均功耗统计
-- `RecordDetailPowerStatsComputer` 当前还负责基于电流积分计算带符号的 `totalTransferredMahBaseSigned`，供充电详情页展示净充入 `mAh`
+- `RecordDetailPowerStatsComputer` 当前负责基于真实采样区间计算原始平均功率与亮屏/息屏时长；记录详情页统一展示 `Wh`
 - 记录详情缓存命中时，必须校验缓存内 `sourceLastModified` 与源文件 `lastModified()` 一致
 
 ### 图标缓存
@@ -497,7 +497,7 @@ shared/src/main/
 - `LocalNotificationUtil` 当前通过复用 `Notification.Builder` 承担通知更新的性能优化；修改通知字段时不要无意退回到“每次更新都新建 Builder”的实现
 - `Server` 初始化末尾会创建 `BinderSender`；修改 Binder 建连或进程恢复逻辑时必须同时检查 ProcessObserver / UidObserver 重推行为
 - 当前设置系统按 `AppSettings`、`StatisticsSettings`、`ServerSettings` 分层；`ServerSettingsCodec.kt` 是 `ServerSettings` 字段映射的唯一入口，`SharedSettings.kt` 负责三类设置的 SharedPreferences 读写入口，`ConfigUtil.kt` 只负责 root/shell 两条来源适配
-- `ServerSettings` 当前同时承载服务端运行参数与功率展示共用配置；`notificationEnabled`、`dualCellEnabled`、`calibrationValue` 都属于 `ServerSettings`，其中后两者由 App 展示侧直接复用；`calibrationValue` 当前语义是“原始电流到实际功率 / mAh 的换算倍率”，不是电流单位枚举
+- `ServerSettings` 当前同时承载服务端运行参数与功率展示共用配置；`notificationEnabled`、`dualCellEnabled`、`calibrationValue` 都属于 `ServerSettings`，其中后两者由 App 展示侧直接复用；`calibrationValue` 当前语义是“原始电流到实际功率 / Wh 的换算倍率”，不是电流单位枚举
 - 更新检测通道属于 `AppSettings`，当前字段为 `AppSettings.updateChannel`，使用 `UpdateChannel` 枚举持久化
 - 更新下载链路当前通过 `AppDownloader` 统一封装；若修改更新安装流程，必须同时检查 `UpdateDialog`、`DownloadManager`、安装未知来源权限、下载完成广播与 `FileProvider`
 - 设置页“常规”分组当前同时包含“启动时检测更新”开关与“版本类型”菜单项；“版本类型”右侧显示当前通道，点击后弹出 `DropdownMenu`

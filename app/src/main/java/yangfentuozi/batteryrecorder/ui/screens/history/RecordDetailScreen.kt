@@ -85,7 +85,7 @@ import yangfentuozi.batteryrecorder.ui.viewmodel.RecordDetailPowerUiState
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
 import yangfentuozi.batteryrecorder.utils.AppIconMemoryCache
 import yangfentuozi.batteryrecorder.utils.batteryRecorderScaffoldInsets
-import yangfentuozi.batteryrecorder.utils.computePowerW
+import yangfentuozi.batteryrecorder.utils.computeEnergyWh
 import yangfentuozi.batteryrecorder.utils.formatDateTime
 import yangfentuozi.batteryrecorder.utils.formatDetailDuration
 import yangfentuozi.batteryrecorder.utils.formatDurationHours
@@ -102,7 +102,6 @@ private const val KEY_SHOW_APP_ICONS = "show_app_icons"
 
 // 充电刚开始阶段经常出现短暂反向抖动，不希望仅靠这段预热噪声就把整张图切到双向轴。
 private const val CHARGING_NEGATIVE_AXIS_DETECTION_IGNORE_PERCENT = 10
-private const val MILLISECONDS_PER_HOUR = 3_600_000.0
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -459,21 +458,19 @@ fun RecordDetailScreen(
                                 ) {
                                     val capacityChangeText = buildString {
                                         append("${capacityChange.totalPercent}%")
-                                        val mah = recordDetailPowerUiState?.totalTransferredMah
-                                            ?: return@buildString
-                                        val displayMah = if (dualCellEnabled) mah * 2.0 else mah
-                                        val displayWh = computePowerW(
+                                        val displayWh = recordDetailPowerUiState?.totalTransferredWh
+                                            ?: computeEnergyWh(
                                             rawPower = stats.averagePower,
+                                            durationMs = durationMs,
                                             dualCellEnabled = dualCellEnabled,
                                             calibrationValue = calibrationValue
-                                        ) * (durationMs.toDouble() / MILLISECONDS_PER_HOUR)
+                                        )
                                         append(" - ")
                                         append(
                                             String.format(
                                                 locale,
-                                                "%.2fWh (%.0fmAh)",
-                                                displayWh,
-                                                displayMah
+                                                "%.3fWh",
+                                                displayWh
                                             )
                                         )
                                     }
@@ -485,13 +482,8 @@ fun RecordDetailScreen(
                                 val screenOnDurationText = formatDurationHours(stats.screenOnTimeMs)
                                 val screenOnText = if (detailState.type != BatteryStatus.Charging) {
                                     recordDetailPowerUiState?.let { powerUiState ->
-                                        val displayMah = if (dualCellEnabled) {
-                                            powerUiState.screenOnConsumedMah * 2.0
-                                        } else {
-                                            powerUiState.screenOnConsumedMah
-                                        }
                                         "$screenOnDurationText - ${
-                                            String.format(locale, "%.1fmAh", displayMah)
+                                            String.format(locale, "%.3fWh", powerUiState.screenOnConsumedWh)
                                         } (${powerUiState.capacityChange.screenOnPercent}%)"
                                     } ?: screenOnDurationText
                                 } else {
@@ -501,13 +493,8 @@ fun RecordDetailScreen(
                                     formatDurationHours(stats.screenOffTimeMs)
                                 val screenOffText = if (detailState.type != BatteryStatus.Charging) {
                                     recordDetailPowerUiState?.let { powerUiState ->
-                                        val displayMah = if (dualCellEnabled) {
-                                            powerUiState.screenOffConsumedMah * 2.0
-                                        } else {
-                                            powerUiState.screenOffConsumedMah
-                                        }
                                         "$screenOffDurationText - ${
-                                            String.format(locale, "%.1fmAh", displayMah)
+                                            String.format(locale, "%.3fWh", powerUiState.screenOffConsumedWh)
                                         } (${powerUiState.capacityChange.screenOffPercent}%)"
                                     } ?: screenOffDurationText
                                 } else {

@@ -73,6 +73,7 @@ import yangfentuozi.batteryrecorder.utils.AppIconMemoryCache
 import yangfentuozi.batteryrecorder.utils.formatDateTime
 import yangfentuozi.batteryrecorder.utils.formatExactDateTime
 import yangfentuozi.batteryrecorder.utils.formatRelativeTime
+import yangfentuozi.batteryrecorder.utils.formatVoltageFromMicrovolt
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -1493,11 +1494,7 @@ private fun SelectedPointInfo(
             }"
         val voltageText =
             if (selected.voltage == 0L) "" else " · ${
-                String.format(
-                    LocalLocale.current.platformLocale,
-                    "%.2f V",
-                    selected.voltage / 1_000_000.0
-                )
+                formatVoltageFromMicrovolt(selected.voltage)
             }"
         "$absoluteTimeText · $timeText\n$powerText · $capacityText$tempText$voltageText"
     }
@@ -2543,7 +2540,7 @@ private fun buildVoltageMarkerLayouts(
     return listOf(maxPoint, minPoint).map { point ->
         val x = coords.timeToX(point.timestamp)
         val y = coords.voltageToY(point.voltage.toDouble())
-        val label = String.format(Locale.getDefault(), "%.2f V", point.voltage / 1_000_000.0)
+        val label = formatVoltageFromMicrovolt(point.voltage)
         val labelWidth = textPaint.measureText(label)
         var textX = x + padding
         if (textX + labelWidth > chartRight) textX = x - padding - labelWidth
@@ -3100,7 +3097,7 @@ private fun DrawScope.drawVoltageExtremeMarkers(
 
         drawCircle(voltageColor, radius = 3.dp.toPx() * 0.65f, center = Offset(x, y))
 
-        val label = String.format(Locale.getDefault(), "%.2f V", point.voltage / 1_000_000.0)
+        val label = formatVoltageFromMicrovolt(point.voltage)
         val labelWidth = textPaint.measureText(label)
         var textX = x + padding
         if (textX + labelWidth > chartRight) textX = x - padding - labelWidth

@@ -7,6 +7,7 @@ import java.util.Date
 import java.util.Locale
 
 const val POWER_SCALE_DIVISOR = 1_000_000_000_000.0
+private const val MILLISECONDS_PER_HOUR = 3_600_000.0
 
 /**
  * 将毫秒时长格式化为小时分钟字符串
@@ -81,6 +82,31 @@ fun computePowerW(
 ): Double {
     val cellMultiplier = if (dualCellEnabled) 2 else 1
     return cellMultiplier * calibrationValue * (rawPower / POWER_SCALE_DIVISOR)
+}
+
+fun computeEnergyWh(
+    rawPower: Double,
+    durationMs: Long,
+    dualCellEnabled: Boolean,
+    calibrationValue: Int
+): Double {
+    return computePowerW(
+        rawPower = rawPower,
+        dualCellEnabled = dualCellEnabled,
+        calibrationValue = calibrationValue
+    ) * (durationMs.toDouble() / MILLISECONDS_PER_HOUR)
+}
+
+fun formatVoltageFromMillivolt(voltageMv: Int): String {
+    return if (voltageMv in 1..20) {
+        String.format(Locale.getDefault(), "%.3f V", voltageMv.toDouble())
+    } else {
+        String.format(Locale.getDefault(), "%.3f V", voltageMv / 1000.0)
+    }
+}
+
+fun formatVoltageFromMicrovolt(voltageUv: Long): String {
+    return String.format(Locale.getDefault(), "%.3f V", voltageUv / 1_000_000.0)
 }
 
 /**
