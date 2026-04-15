@@ -30,6 +30,13 @@ object SettingsConstants {
             def = false
         )
 
+    /** 是否启用通知兼容模式（每次更新都新建 Builder） */
+    val notificationCompatModeEnabled =
+        BooleanConfigItem(
+            key = "notification_compat_mode_enabled",
+            def = false
+        )
+
     /** 是否启用双电芯模式 */
     val dualCellEnabled =
         BooleanConfigItem(

@@ -86,7 +86,7 @@ class Server internal constructor() : IService.Stub() {
         Handlers.common.post {
             LoggerX.d(
                 tag,
-                "updateConfig: 应用配置, notification=${settings.notificationEnabled} dualCell=${settings.dualCellEnabled} calibration=${settings.calibrationValue} intervalMs=${settings.recordIntervalMs} writeLatencyMs=${settings.writeLatencyMs} batchSize=${settings.batchSize} screenOffRecord=${settings.screenOffRecordEnabled} segmentDurationMin=${settings.segmentDurationMin} logLevel=${settings.logLevel} polling=${settings.alwaysPollingScreenStatusEnabled}"
+                "updateConfig: 应用配置, notification=${settings.notificationEnabled} compatMode=${settings.notificationCompatModeEnabled} dualCell=${settings.dualCellEnabled} calibration=${settings.calibrationValue} intervalMs=${settings.recordIntervalMs} writeLatencyMs=${settings.writeLatencyMs} batchSize=${settings.batchSize} screenOffRecord=${settings.screenOffRecordEnabled} segmentDurationMin=${settings.segmentDurationMin} logLevel=${settings.logLevel} polling=${settings.alwaysPollingScreenStatusEnabled}"
             )
             LoggerX.maxHistoryDays = settings.maxHistoryDays
             LoggerX.logLevel = settings.logLevel
@@ -97,6 +97,7 @@ class Server internal constructor() : IService.Stub() {
                 dualCellEnabled = settings.dualCellEnabled,
                 calibrationValue = settings.calibrationValue,
             )
+            monitor.setNotificationCompatModeEnabled(settings.notificationCompatModeEnabled)
             monitor.setNotificationEnabled(settings.notificationEnabled)
             monitor.alwaysPollingScreenStatusEnabled = settings.alwaysPollingScreenStatusEnabled
             monitor.recordIntervalMs = settings.recordIntervalMs

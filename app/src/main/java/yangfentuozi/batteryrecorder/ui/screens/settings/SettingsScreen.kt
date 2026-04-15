@@ -60,6 +60,8 @@ fun SettingsScreen(
             ),
             server = ServerActions(
                 setNotificationEnabled = settingsViewModel::setNotificationEnabled,
+                setNotificationCompatModeEnabled =
+                    settingsViewModel::setNotificationCompatModeEnabled,
                 setRecordIntervalMs = settingsViewModel::setRecordIntervalMs,
                 setWriteLatencyMs = settingsViewModel::setWriteLatencyMs,
                 setBatchSize = settingsViewModel::setBatchSize,
@@ -90,6 +92,7 @@ fun SettingsScreen(
             updateChannel = appSettings.updateChannel,
             dischargeDisplayPositive = appSettings.dischargeDisplayPositive,
             notificationEnabled = serverSettings.notificationEnabled,
+            notificationCompatModeEnabled = serverSettings.notificationCompatModeEnabled,
             dualCellEnabled = serverSettings.dualCellEnabled,
             calibrationValue = serverSettings.calibrationValue,
             recordIntervalMs = serverSettings.recordIntervalMs,

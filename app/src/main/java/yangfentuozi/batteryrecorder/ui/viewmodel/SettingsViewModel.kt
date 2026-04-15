@@ -122,7 +122,7 @@ class SettingsViewModel : ViewModel() {
 
         LoggerX.d(
             TAG,
-            "[设置] loadSettings 完成: notification=${currentServerSettings.notificationEnabled} dualCell=${currentServerSettings.dualCellEnabled} calibration=${currentServerSettings.calibrationValue} intervalMs=${currentServerSettings.recordIntervalMs} writeLatencyMs=${currentServerSettings.writeLatencyMs} batchSize=${currentServerSettings.batchSize} screenOffRecord=${currentServerSettings.screenOffRecordEnabled} polling=${currentServerSettings.alwaysPollingScreenStatusEnabled} logLevel=${currentServerSettings.logLevel}"
+            "[设置] loadSettings 完成: notification=${currentServerSettings.notificationEnabled} compatMode=${currentServerSettings.notificationCompatModeEnabled} dualCell=${currentServerSettings.dualCellEnabled} calibration=${currentServerSettings.calibrationValue} intervalMs=${currentServerSettings.recordIntervalMs} writeLatencyMs=${currentServerSettings.writeLatencyMs} batchSize=${currentServerSettings.batchSize} screenOffRecord=${currentServerSettings.screenOffRecordEnabled} polling=${currentServerSettings.alwaysPollingScreenStatusEnabled} logLevel=${currentServerSettings.logLevel}"
         )
     }
 
@@ -175,6 +175,20 @@ class SettingsViewModel : ViewModel() {
             message = "[设置] 更新实时通知并准备下发: enabled=$enabled"
         ) { current ->
             current.copy(notificationEnabled = enabled)
+        }
+    }
+
+    /**
+     * 更新通知兼容模式并下发到运行中的服务端。
+     *
+     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
+     * @return 无。
+     */
+    fun setNotificationCompatModeEnabled(enabled: Boolean) {
+        updateServerSettings(
+            message = "[设置] 更新通知兼容模式并准备下发: enabled=$enabled"
+        ) { current ->
+            current.copy(notificationCompatModeEnabled = enabled)
         }
     }
 

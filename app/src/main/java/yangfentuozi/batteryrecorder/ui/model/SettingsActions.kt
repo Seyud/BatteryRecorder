@@ -11,6 +11,7 @@ data class CalibrationActions(
 
 data class ServerActions(
     val setNotificationEnabled: (Boolean) -> Unit,
+    val setNotificationCompatModeEnabled: (Boolean) -> Unit,
     val setRecordIntervalMs: (Long) -> Unit,
     val setWriteLatencyMs: (Long) -> Unit,
     val setBatchSize: (Int) -> Unit,

@@ -33,6 +33,8 @@ data class SettingsUiState(
     // ServerSettings：传递给记录服务的运行参数，控制采样、通知、展示换算、写盘、分段与日志行为。
     /** 实时功耗通知 */
     val notificationEnabled: Boolean = ServerSettings().notificationEnabled,
+    /** 通知兼容模式 */
+    val notificationCompatModeEnabled: Boolean = ServerSettings().notificationCompatModeEnabled,
     /** 串联双电芯 */
     val dualCellEnabled: Boolean = ServerSettings().dualCellEnabled,
     /** 电流校准 */

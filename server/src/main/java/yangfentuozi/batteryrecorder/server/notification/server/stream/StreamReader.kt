@@ -13,12 +13,12 @@ class StreamReader(
     private val input = DataInputStream(inputStream)
 
     /**
-     * 读取下一条记录：
-     * - 成功：返回 LineRecord
-     * - 正常 EOF（还没开始读新帧就到流末尾）：返回 null
-     * - 帧读到一半 EOF / 数据损坏 / 协议错误：抛 IOException
+     * 读取下一条通知流消息。
+     *
+     * @return 成功时返回一条通知流消息；如果还没开始读新帧就到 EOF，则返回 `null`。
+     * @throws IOException 当帧读到一半 EOF、数据损坏或协议错误时抛出。
      */
-    fun readNext(): NotificationInfo? {
+    fun readNext(): NotificationStreamMessage? {
         // 标志位
         val magic = try {
             input.readInt()
@@ -36,13 +36,14 @@ class StreamReader(
         try {
             // flag
             when(val flag = input.readInt()) {
-                StreamProtocol.FLAG_DATA -> {}
-                StreamProtocol.FLAG_STOP -> throw StreamProtocol.StopException()
-                StreamProtocol.FLAG_CANCEL -> throw StreamProtocol.CancelNotificationException()
+                StreamProtocol.FLAG_DATA ->
+                    return NotificationStreamMessage.Data(NotificationInfo.readFromDis(dis = input))
+                StreamProtocol.FLAG_STOP -> return NotificationStreamMessage.Stop
+                StreamProtocol.FLAG_CANCEL -> return NotificationStreamMessage.CancelNotification
+                StreamProtocol.FLAG_SET_COMPATIBILITY_MODE ->
+                    return NotificationStreamMessage.SetCompatibilityMode(input.readBoolean())
                 else -> throw IOException("无效 flag: $flag")
             }
-
-            return NotificationInfo.readFromDis(dis = input)
         } catch (e: EOFException) {
             throw IOException("非预期的 EOF", e)
         }

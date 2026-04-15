@@ -91,6 +91,7 @@
     <string name="settings_calibration_summary">调整电流读数的倍率</string>
     <string name="settings_root_boot_autostart">开机自启（ROOT）</string>
     <string name="settings_notification_enabled">实时功率通知</string>
+    <string name="settings_notification_compat_mode">通知兼容模式</string>
     <string name="settings_screen_off_record">息屏记录</string>
     <string name="settings_poll_screen_status">轮询获取息屏状态</string>
     <string name="settings_record_interval">采样间隔</string>

@@ -72,6 +72,10 @@ object ServerSettingsCodec {
      */
     fun writeToPreferences(editor: SharedPreferences.Editor, settings: ServerSettings) {
         editor.putBoolean(SettingsConstants.notificationEnabled.key, settings.notificationEnabled)
+        editor.putBoolean(
+            SettingsConstants.notificationCompatModeEnabled.key,
+            settings.notificationCompatModeEnabled
+        )
         editor.putBoolean(SettingsConstants.dualCellEnabled.key, settings.dualCellEnabled)
         editor.putInt(SettingsConstants.calibrationValue.key, settings.calibrationValue)
         editor.putLong(SettingsConstants.recordIntervalMs.key, settings.recordIntervalMs)
@@ -98,6 +102,9 @@ object ServerSettingsCodec {
             notificationEnabled =
                 source.boolean(SettingsConstants.notificationEnabled.key)
                     ?: SettingsConstants.notificationEnabled.def,
+            notificationCompatModeEnabled =
+                source.boolean(SettingsConstants.notificationCompatModeEnabled.key)
+                    ?: SettingsConstants.notificationCompatModeEnabled.def,
             dualCellEnabled =
                 source.boolean(SettingsConstants.dualCellEnabled.key)
                     ?: SettingsConstants.dualCellEnabled.def,

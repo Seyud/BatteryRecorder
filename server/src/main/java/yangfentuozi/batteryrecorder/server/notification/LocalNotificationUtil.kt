@@ -10,11 +10,14 @@ import android.os.RemoteException
 import android.os.ServiceManager
 import yangfentuozi.batteryrecorder.server.fakecontext.FakeContext
 import yangfentuozi.batteryrecorder.shared.Constants
+import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.hiddenapi.compat.NotificationManagerCompat
 import java.util.Locale
 
-class LocalNotificationUtil : NotificationUtil {
+class LocalNotificationUtil(
+    compatibilityModeEnabled: Boolean = SettingsConstants.notificationCompatModeEnabled.def
+) : NotificationUtil {
 
     private val tag = "LocalNotificationUtil"
 
@@ -26,6 +29,8 @@ class LocalNotificationUtil : NotificationUtil {
 
     @Volatile
     private var channelCreated = false
+    @Volatile
+    private var compatibilityModeEnabled = compatibilityModeEnabled
 
     init {
         synchronized(lock) {
@@ -49,6 +54,20 @@ class LocalNotificationUtil : NotificationUtil {
             } catch (e: RemoteException) {
                 LoggerX.e(tag, "init: 通知渠道创建失败", tr = e)
             }
+        }
+    }
+
+    /**
+     * 更新当前通知实现是否复用 Builder。
+     *
+     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用单个 Builder。
+     * @return 无。
+     */
+    override fun setCompatibilityModeEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            if (compatibilityModeEnabled == enabled) return
+            LoggerX.i(tag, "setCompatibilityModeEnabled: $compatibilityModeEnabled -> $enabled")
+            compatibilityModeEnabled = enabled
         }
     }
 
@@ -89,7 +108,8 @@ class LocalNotificationUtil : NotificationUtil {
             info.temp / 10.0,
             info.capacity
         )
-        return reusableBuilder.setContentText(contentText)
+        val builder = if (compatibilityModeEnabled) createBaseBuilder() else reusableBuilder
+        return builder.setContentText(contentText)
             .setTicker(contentText)
             .build()
     }
@@ -116,20 +136,23 @@ class LocalNotificationUtil : NotificationUtil {
         }
     }
 
-    private val reusableBuilder = Notification.Builder(context, CHANNEL_ID)
-        .setSmallIcon(cachedIcon)
-        .setContentTitle(NOTIFICATION_TITLE)
-        .setShowWhen(false)
-        .setCategory(Notification.CATEGORY_SERVICE)
-        .setVisibility(Notification.VISIBILITY_PUBLIC)
-        .setOnlyAlertOnce(true)
-        .setOngoing(true)
-        .setAutoCancel(false)
+    private fun createBaseBuilder(): Notification.Builder =
+        Notification.Builder(context, CHANNEL_ID)
+            .setSmallIcon(cachedIcon)
+            .setContentTitle(NOTIFICATION_TITLE)
+            .setShowWhen(false)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setAutoCancel(false)
+
+    private val reusableBuilder by lazy(LazyThreadSafetyMode.NONE) { createBaseBuilder() }
 
     companion object {
         private const val SHELL_PACKAGE_NAME = "com.android.shell"
         private const val SHELL_UID = 2000
-        private const val CHANNEL_ID = "batteryrecorder_notification"
+        private const val CHANNEL_ID = "recorder_notification"
         private const val CHANNEL_NAME = "BatteryRecorder"
         private const val NOTIFICATION_TAG = "batteryrecorder_notification"
         private const val NOTIFICATION_ID = 10086

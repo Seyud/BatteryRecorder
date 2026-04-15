@@ -494,10 +494,10 @@ shared/src/main/
 - App 更新后的自动续接记录依赖 `server/stream/*` 与 `PowerRecordWriter.WriterStatusData`；修改当前记录分段、关闭逻辑或 writer 状态字段时必须同步检查这条交接链路
 - root 模式下主 `Server` 会派生 `NotificationServer` 子进程处理通知；通知相关改动必须同时检查 `ChildServerBridge`、socket 协议与 `LocalNotificationUtil`
 - `NotificationServer` 依赖 `FakeContext` 获取可用 `Context` 与外部 Provider；修改通知链路时不要假设它运行在常规 Android `Application` 环境中
-- `LocalNotificationUtil` 当前通过复用 `Notification.Builder` 承担通知更新的性能优化；修改通知字段时不要无意退回到“每次更新都新建 Builder”的实现
+- `LocalNotificationUtil` 默认通过复用 `Notification.Builder` 承担通知更新的性能优化；`ServerSettings.notificationCompatModeEnabled` 开启后会切到“每次更新都新建 Builder”的兼容模式，修改通知链路时必须同时检查这两条路径
 - `Server` 初始化末尾会创建 `BinderSender`；修改 Binder 建连或进程恢复逻辑时必须同时检查 ProcessObserver / UidObserver 重推行为
 - 当前设置系统按 `AppSettings`、`StatisticsSettings`、`ServerSettings` 分层；`ServerSettingsCodec.kt` 是 `ServerSettings` 字段映射的唯一入口，`SharedSettings.kt` 负责三类设置的 SharedPreferences 读写入口，`ConfigUtil.kt` 只负责 root/shell 两条来源适配
-- `ServerSettings` 当前同时承载服务端运行参数与功率展示共用配置；`notificationEnabled`、`dualCellEnabled`、`calibrationValue` 都属于 `ServerSettings`，其中后两者由 App 展示侧直接复用；`calibrationValue` 当前语义是“原始电流到实际功率 / mAh 的换算倍率”，不是电流单位枚举
+- `ServerSettings` 当前同时承载服务端运行参数与功率展示共用配置；`notificationEnabled`、`notificationCompatModeEnabled`、`dualCellEnabled`、`calibrationValue` 都属于 `ServerSettings`，其中后两者由 App 展示侧直接复用；`calibrationValue` 当前语义是“原始电流到实际功率 / mAh 的换算倍率”，不是电流单位枚举
 - 更新检测通道属于 `AppSettings`，当前字段为 `AppSettings.updateChannel`，使用 `UpdateChannel` 枚举持久化
 - 更新下载链路当前通过 `AppDownloader` 统一封装；若修改更新安装流程，必须同时检查 `UpdateDialog`、`DownloadManager`、安装未知来源权限、下载完成广播与 `FileProvider`
 - 设置页“常规”分组当前同时包含“启动时检测更新”开关与“版本类型”菜单项；“版本类型”右侧显示当前通道，点击后弹出 `DropdownMenu`

@@ -36,6 +36,19 @@ class StreamWriter(
         out.writeInt(StreamProtocol.FLAG_CANCEL)
     }
 
+    /**
+     * 下发通知兼容模式配置。
+     *
+     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
+     * @return 无。
+     */
+    fun writeCompatibilityModeEnabled(enabled: Boolean) {
+        out.writeInt(StreamProtocol.MAGIC)
+        out.writeInt(StreamProtocol.FLAG_SET_COMPATIBILITY_MODE)
+        out.writeBoolean(enabled)
+        out.flush()
+    }
+
     override fun close() {
         out.close()
     }

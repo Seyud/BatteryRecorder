@@ -91,6 +91,7 @@
     <string name="settings_calibration_summary">Adjust the multiplier of current readings</string>
     <string name="settings_root_boot_autostart">Auto start on boot (ROOT)</string>
     <string name="settings_notification_enabled">Realtime power notification</string>
+    <string name="settings_notification_compat_mode">Notification compatibility mode</string>
     <string name="settings_screen_off_record">Record when screen is off</string>
     <string name="settings_poll_screen_status">Poll screen state</string>
     <string name="settings_record_interval">Sampling interval</string>

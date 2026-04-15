@@ -80,6 +80,8 @@ class Monitor(
 
     @Volatile
     private var notificationEnabled = SettingsConstants.notificationEnabled.def
+    @Volatile
+    private var notificationCompatModeEnabled = SettingsConstants.notificationCompatModeEnabled.def
 
     private var mAlwaysPollingScreenStatusEnabled: Boolean =
         SettingsConstants.alwaysPollingScreenStatusEnabled.def
@@ -304,10 +306,15 @@ class Monitor(
     private fun enableNotification() {
         lock.withLock {
             notificationUtil?.cancelNotification()
-            notificationUtil = if (Os.getuid() == 0) RemoteNotificationUtil(bridge!!)
+            notificationUtil = if (Os.getuid() == 0) {
+                RemoteNotificationUtil(
+                    bridge = bridge!!,
+                    initialCompatibilityModeEnabled = notificationCompatModeEnabled
+                )
+            }
             else {
                 ServiceManagerCompat.waitService("notification")
-                LocalNotificationUtil()
+                LocalNotificationUtil(notificationCompatModeEnabled)
             }
         }
     }
@@ -317,6 +324,24 @@ class Monitor(
             notificationUtil?.cancelNotification()
             notificationUtil = null
             notificationEnabled = false
+        }
+    }
+
+    /**
+     * 更新通知兼容模式。
+     *
+     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
+     * @return 无；若通知已启用，则会立即同步到当前通知实现。
+     */
+    fun setNotificationCompatModeEnabled(enabled: Boolean) {
+        lock.withLock {
+            if (notificationCompatModeEnabled == enabled) return
+            LoggerX.d(
+                tag,
+                "setNotificationCompatModeEnabled: $notificationCompatModeEnabled -> $enabled"
+            )
+            notificationCompatModeEnabled = enabled
+            notificationUtil?.setCompatibilityModeEnabled(enabled)
         }
     }
 

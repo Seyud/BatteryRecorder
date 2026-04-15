@@ -14,6 +14,9 @@ import yangfentuozi.batteryrecorder.shared.util.LoggerX
 data class ServerSettings(
     /** 是否展示实时功耗通知。 */
     val notificationEnabled: Boolean = SettingsConstants.notificationEnabled.def,
+    /** 是否启用通知兼容模式；开启后每次更新都会新建 Notification.Builder。 */
+    val notificationCompatModeEnabled: Boolean =
+        SettingsConstants.notificationCompatModeEnabled.def,
     /** 是否按双电芯设备处理功率展示与通知。 */
     val dualCellEnabled: Boolean = SettingsConstants.dualCellEnabled.def,
     /** 电流校准值，统一用于功率与 mAh 换算。 */

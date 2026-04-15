@@ -6,7 +6,7 @@ import android.os.Looper
 import android.system.Os
 import yangfentuozi.batteryrecorder.server.notification.LocalNotificationUtil
 import yangfentuozi.batteryrecorder.server.notification.NotificationUtil
-import yangfentuozi.batteryrecorder.server.notification.server.stream.StreamProtocol
+import yangfentuozi.batteryrecorder.server.notification.server.stream.NotificationStreamMessage
 import yangfentuozi.batteryrecorder.server.notification.server.stream.StreamReader
 import yangfentuozi.batteryrecorder.shared.util.Handlers
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
@@ -35,18 +35,19 @@ class NotificationServer {
             LoggerX.i(tag, "@serverRunnable: 接受客户端")
             reader = StreamReader(socket!!.inputStream)
             while (!isStopped) {
-                try {
-                    val info = reader!!.readNext() ?: break
-                    notificationUtil.updateNotification(info)
-                } catch (_: StreamProtocol.CancelNotificationException) {
-                    notificationUtil.cancelNotification()
+                when (val message = reader!!.readNext() ?: break) {
+                    is NotificationStreamMessage.Data -> notificationUtil.updateNotification(message.info)
+                    NotificationStreamMessage.CancelNotification -> notificationUtil.cancelNotification()
+                    is NotificationStreamMessage.SetCompatibilityMode ->
+                        notificationUtil.setCompatibilityModeEnabled(message.enabled)
+                    NotificationStreamMessage.Stop -> {
+                        isStopped = true
+                        Handlers.main.post { exitProcess(0) }
+                    }
                 }
             }
         } catch (e: IOException) {
             if (!isStopped) LoggerX.e(tag, "@serverRunnable: 处理客户端请求时出现异常", tr = e)
-        } catch (_: StreamProtocol.StopException) {
-            isStopped = true
-            Handlers.main.post { exitProcess(0) }
         } finally {
             reader?.let { runCatching { it.close() } }
             socket?.let { runCatching { it.close() } }
