@@ -152,7 +152,7 @@ class LocalNotificationUtil(
     companion object {
         private const val SHELL_PACKAGE_NAME = "com.android.shell"
         private const val SHELL_UID = 2000
-        private const val CHANNEL_ID = "recorder_notification"
+        private const val CHANNEL_ID = "batteryrecorder_notification"
         private const val CHANNEL_NAME = "BatteryRecorder"
         private const val NOTIFICATION_TAG = "batteryrecorder_notification"
         private const val NOTIFICATION_ID = 10086
