@@ -6,12 +6,18 @@ import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import kotlin.math.abs
 
 internal const val STARTUP_PROMPT_PREFS = "startup_prompt"
-internal const val KEY_STARTUP_GUIDE_COMPLETED_V2 = "startup_guide_completed_v2"
+internal const val KEY_STARTUP_GUIDE_COMPLETED = "startup_guide_completed"
 
-private const val KEY_STARTUP_POWER_CALIBRATION_DETECTED_V1 = "startup_power_calibration_detected_v1"
+internal const val KEY_STARTUP_POWER_CALIBRATION_DETECTED = "startup_power_calibration_detected"
 private const val DISCHARGE_POWER_THRESHOLD = 40_000_000_000L
 private const val APPLY_STABLE_COUNT = 4
 private const val COMPLETE_STABLE_COUNT = 5
+
+internal enum class StartupPowerCalibrationCompletionState {
+    Pending,
+    Detected,
+    Skipped
+}
 
 internal enum class StartupPowerCalibrationPhase {
     WaitingForService,
@@ -25,8 +31,12 @@ internal data class StartupPowerCalibrationUiState(
     val lastStatus: BatteryStatus = BatteryStatus.Unknown,
     val candidate: Int? = null,
     val stableCount: Int = 0,
-    val isCompleted: Boolean = false
-)
+    val completionState: StartupPowerCalibrationCompletionState =
+        StartupPowerCalibrationCompletionState.Pending
+) {
+    val isCompleted: Boolean
+        get() = completionState != StartupPowerCalibrationCompletionState.Pending
+}
 
 internal data class StartupPowerCalibrationSampleResult(
     val state: StartupPowerCalibrationUiState,
@@ -65,7 +75,11 @@ internal class StartupGuidePowerCalibrationDetector(
     private val prefs: SharedPreferences
 ) {
     private var state = StartupPowerCalibrationUiState(
-        isCompleted = prefs.getBoolean(KEY_STARTUP_POWER_CALIBRATION_DETECTED_V1, false)
+        completionState = if (prefs.getBoolean(KEY_STARTUP_POWER_CALIBRATION_DETECTED, false)) {
+            StartupPowerCalibrationCompletionState.Detected
+        } else {
+            StartupPowerCalibrationCompletionState.Pending
+        }
     )
 
     /**
@@ -78,15 +92,40 @@ internal class StartupGuidePowerCalibrationDetector(
     /**
      * 仅根据外部观测到的电池状态刷新 UI 状态。
      *
-     * 这个入口只负责把 `ACTION_BATTERY_CHANGED` 之类的状态同步到引导页，
-     * 不参与校准推断，也不会改动候选倍率与连续计数。
+     * 这个入口只负责把 `ACTION_BATTERY_CHANGED` 之类的状态同步到引导页。
+     * 当设备离开放电态时，同步清空本轮内存中的候选倍率与连续计数，避免旧进度穿透到下一轮探测。
      *
      * @param status 当前观测到的电池状态。
      * @return 返回更新后的 UI 状态。
      */
     fun observeStatus(status: BatteryStatus): StartupPowerCalibrationUiState {
         if (state.lastStatus == status) return state
-        state = state.copy(lastStatus = status)
+        state = if (!state.isCompleted && status != BatteryStatus.Discharging) {
+            state.copy(
+                lastStatus = status,
+                candidate = null,
+                stableCount = 0
+            )
+        } else {
+            state.copy(lastStatus = status)
+        }
+        return state
+    }
+
+    /**
+     * 强制跳过自动探测，直接解锁后续引导与手动校准。
+     *
+     * @return 返回跳过后的 UI 状态。
+     */
+    fun skipDetection(): StartupPowerCalibrationUiState {
+        if (state.completionState == StartupPowerCalibrationCompletionState.Skipped) {
+            return state
+        }
+        state = state.copy(
+            candidate = null,
+            stableCount = 0,
+            completionState = StartupPowerCalibrationCompletionState.Skipped
+        )
         return state
     }
 
@@ -128,14 +167,18 @@ internal class StartupGuidePowerCalibrationDetector(
         val completedNow = nextStableCount == COMPLETE_STABLE_COUNT
         if (completedNow) {
             prefs.edit {
-                putBoolean(KEY_STARTUP_POWER_CALIBRATION_DETECTED_V1, true)
+                putBoolean(KEY_STARTUP_POWER_CALIBRATION_DETECTED, true)
             }
         }
         state = StartupPowerCalibrationUiState(
             lastStatus = status,
             candidate = candidate,
             stableCount = nextStableCount,
-            isCompleted = completedNow
+            completionState = if (completedNow) {
+                StartupPowerCalibrationCompletionState.Detected
+            } else {
+                StartupPowerCalibrationCompletionState.Pending
+            }
         )
         val calibrationToApply = candidate.takeIf {
             nextStableCount == APPLY_STABLE_COUNT && currentCalibrationValue != it

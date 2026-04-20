@@ -204,6 +204,7 @@
     <string name="startup_guide_detection_wait_discharge">Waiting for the device to enter discharge.</string>
     <string name="startup_guide_detection_running">Detecting the calibration multiplier.</string>
     <string name="startup_guide_detection_completed">Auto detection completed.</string>
+    <string name="startup_guide_detection_skipped">Auto detection skipped. Adjust calibration manually.</string>
     <string name="startup_guide_detection_candidate_empty">Current candidate multiplier: --</string>
     <string name="startup_guide_detection_candidate_value">Current candidate multiplier: %1$d</string>
     <string name="startup_guide_detection_stable_count">Stable matches: %1$d / 5</string>
@@ -211,7 +212,9 @@
     <string name="startup_guide_dual_cell_summary">Enable this for dual-cell devices.</string>
     <string name="startup_guide_calibration_current_value">Current calibration multiplier: %1$d</string>
     <string name="startup_guide_calibration_completed_hint">Auto detection completed.</string>
+    <string name="startup_guide_calibration_skipped_hint">Auto detection skipped. Manual calibration is now available.</string>
     <string name="startup_guide_calibration_locked_hint">Manual calibration is available only after auto detection completes.</string>
+    <string name="startup_guide_force_skip_detection">Force skip</string>
     <string name="startup_guide_adjust_calibration">Adjust calibration manually</string>
     <string name="docs_intro_title">Read the docs before first use</string>
     <string name="docs_intro_message">Please read the user guide before continuing.\nThe docs cover startup methods, calibration, excluding high-load apps, prediction, history gestures, and chart interactions.</string>

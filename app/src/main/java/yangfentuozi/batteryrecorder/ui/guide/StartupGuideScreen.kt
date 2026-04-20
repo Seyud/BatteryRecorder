@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,9 +35,11 @@ import androidx.compose.material.icons.filled.AutoGraph
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -244,7 +247,10 @@ fun StartupGuideScreen(
                         serviceConnected = serviceConnected,
                         calibrationDetectionState = calibrationDetectionState,
                         onDualCellChange = settingsViewModel::setDualCellEnabled,
-                        onAdjustCalibration = { showCalibrationDialog = true }
+                        onAdjustCalibration = { showCalibrationDialog = true },
+                        onSkipDetection = {
+                            calibrationDetectionState = calibrationDetector.skipDetection()
+                        }
                     )
                 }
             }
@@ -462,7 +468,8 @@ private fun CalibrationContent(
     serviceConnected: Boolean,
     calibrationDetectionState: StartupPowerCalibrationUiState,
     onDualCellChange: (Boolean) -> Unit,
-    onAdjustCalibration: () -> Unit
+    onAdjustCalibration: () -> Unit,
+    onSkipDetection: () -> Unit
 ) {
     val phase = calibrationDetectionState.resolvePhase(serviceConnected)
     Column(
@@ -514,8 +521,14 @@ private fun CalibrationContent(
                         StartupPowerCalibrationPhase.Detecting ->
                             stringResource(R.string.startup_guide_detection_running)
 
-                        StartupPowerCalibrationPhase.Completed ->
-                            stringResource(R.string.startup_guide_detection_completed)
+                        StartupPowerCalibrationPhase.Completed -> when (
+                            calibrationDetectionState.completionState
+                        ) {
+                            StartupPowerCalibrationCompletionState.Skipped ->
+                                stringResource(R.string.startup_guide_detection_skipped)
+
+                            else -> stringResource(R.string.startup_guide_detection_completed)
+                        }
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -540,7 +553,11 @@ private fun CalibrationContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (phase == StartupPowerCalibrationPhase.Completed) {
+                if (
+                    phase == StartupPowerCalibrationPhase.Completed &&
+                    calibrationDetectionState.completionState ==
+                    StartupPowerCalibrationCompletionState.Detected
+                ) {
                     Text(
                         text = stringResource(
                             R.string.startup_guide_detection_result_value,
@@ -606,20 +623,50 @@ private fun CalibrationContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = if (calibrationDetectionState.isCompleted) {
-                        stringResource(R.string.startup_guide_calibration_completed_hint)
-                    } else {
-                        stringResource(R.string.startup_guide_calibration_locked_hint)
+                    text = when (calibrationDetectionState.completionState) {
+                        StartupPowerCalibrationCompletionState.Detected ->
+                            stringResource(R.string.startup_guide_calibration_completed_hint)
+
+                        StartupPowerCalibrationCompletionState.Skipped ->
+                            stringResource(R.string.startup_guide_calibration_skipped_hint)
+
+                        StartupPowerCalibrationCompletionState.Pending ->
+                            stringResource(R.string.startup_guide_calibration_locked_hint)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(
-                    onClick = onAdjustCalibration,
-                    enabled = calibrationDetectionState.isCompleted,
-                    shape = AppShape.SplicedGroup.single
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(stringResource(R.string.startup_guide_adjust_calibration))
+                    Button(
+                        onClick = onAdjustCalibration,
+                        enabled = calibrationDetectionState.isCompleted,
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.large
+                    ) {
+                        Text(stringResource(R.string.startup_guide_adjust_calibration))
+                    }
+                    OutlinedButton(
+                        onClick = onSkipDetection,
+                        enabled = !calibrationDetectionState.isCompleted,
+                        modifier = Modifier.weight(1f),
+                        shape = AppShape.large,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (calibrationDetectionState.isCompleted) {
+                                MaterialTheme.colorScheme.outlineVariant
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            }
+                        )
+                    ) {
+                        Text(stringResource(R.string.startup_guide_force_skip_detection))
+                    }
                 }
             }
         }

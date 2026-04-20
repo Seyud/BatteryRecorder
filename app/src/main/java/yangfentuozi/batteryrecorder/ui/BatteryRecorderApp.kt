@@ -18,9 +18,9 @@ import yangfentuozi.batteryrecorder.BuildConfig
 import yangfentuozi.batteryrecorder.R
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.batteryrecorder.ui.dialog.home.DocsIntroDialog
+import yangfentuozi.batteryrecorder.ui.guide.KEY_STARTUP_GUIDE_COMPLETED
 import yangfentuozi.batteryrecorder.ui.guide.STARTUP_PROMPT_PREFS
 import yangfentuozi.batteryrecorder.ui.dialog.home.UpdateDialog
-import yangfentuozi.batteryrecorder.ui.guide.KEY_STARTUP_GUIDE_COMPLETED_V2
 import yangfentuozi.batteryrecorder.ui.guide.StartupGuideScreen
 import yangfentuozi.batteryrecorder.ui.navigation.BatteryRecorderNavHost
 import yangfentuozi.batteryrecorder.ui.viewmodel.MainViewModel
@@ -50,7 +50,7 @@ fun BatteryRecorderApp(
 
     LaunchedEffect(settingsViewModel, context) {
         settingsViewModel.init(context)
-        val startupGuideCompleted = startupPrefs.getBoolean(KEY_STARTUP_GUIDE_COMPLETED_V2, false)
+        val startupGuideCompleted = startupPrefs.getBoolean(KEY_STARTUP_GUIDE_COMPLETED, false)
         val docsIntroShown = startupPrefs.getBoolean(KEY_DOCS_INTRO_SHOWN, false)
         showStartupGuide = !startupGuideCompleted
         showDocsIntro = !docsIntroShown
@@ -104,7 +104,7 @@ fun BatteryRecorderApp(
             settingsViewModel = settingsViewModel,
             onGuideCompleted = {
                 startupPrefs.edit {
-                    putBoolean(KEY_STARTUP_GUIDE_COMPLETED_V2, true)
+                    putBoolean(KEY_STARTUP_GUIDE_COMPLETED, true)
                 }
                 LoggerX.i(TAG, "[引导] 首次启动引导已完成")
                 showStartupGuide = false

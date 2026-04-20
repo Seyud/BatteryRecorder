@@ -204,6 +204,7 @@
     <string name="startup_guide_detection_wait_discharge">等待设备进入放电状态</string>
     <string name="startup_guide_detection_running">正在探测校准倍率</string>
     <string name="startup_guide_detection_completed">自动探测已完成</string>
+    <string name="startup_guide_detection_skipped">已跳过自动探测，请手动调整校准</string>
     <string name="startup_guide_detection_candidate_empty">当前候选倍率: --</string>
     <string name="startup_guide_detection_candidate_value">当前候选倍率: %1$d</string>
     <string name="startup_guide_detection_stable_count">连续一致次数: %1$d / 5</string>
@@ -211,7 +212,9 @@
     <string name="startup_guide_dual_cell_summary">双电芯设备请开启该选项</string>
     <string name="startup_guide_calibration_current_value">当前校准倍率: %1$d</string>
     <string name="startup_guide_calibration_completed_hint">自动探测已完成</string>
+    <string name="startup_guide_calibration_skipped_hint">已跳过自动探测，现在可以手动调整校准倍率</string>
     <string name="startup_guide_calibration_locked_hint">自动探测完成后，才可以手动调整校准倍率</string>
+    <string name="startup_guide_force_skip_detection">强制跳过</string>
     <string name="startup_guide_adjust_calibration">手动调整校准</string>
     <string name="docs_intro_title">首次使用请先看文档</string>
     <string name="docs_intro_message">请先阅读使用说明，再继续使用应用。\n文档包含启动方式、校准、排除高负载 App、续航预测、历史记录手势和图表交互说明。</string>
