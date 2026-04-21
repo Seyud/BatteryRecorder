@@ -148,11 +148,14 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 ### 记录详情链路
 
 - `HistoryViewModel` 在 `BatteryRecorderNavHost` 中创建单个共享实例，供 `HistoryListScreen` 与 `RecordDetailScreen` 共用
-- `HistoryViewModel` 当前统一产出 `recordDetail`、`recordChartUiState`、`recordAppDetailEntries` 与 `recordDetailPowerUiState`，分别驱动详情页基础信息、图表、应用明细与功耗摘要
+- `HistoryViewModel` 当前统一产出 `recordDetail`、`recordChartUiState`、`recordAppDetailEntries` 与 `recordDetailSummaryUiState`，分别驱动详情页基础信息、图表、应用明细与功耗摘要
+- 历史列表主链路当前已下沉到 `usecase/history/LoadHistoryListUseCase.kt`；`HistoryViewModel` 主要负责列表令牌隔离、瞬时 UI 状态与结果回写，不再直接维护旧版散落的分页实现
 - `RecordDetailScreen` 当前主要负责页面编排、全屏图表切换、详情页本地图表偏好持久化，以及导出/删除/说明弹窗入口
 - 详情页摘要区、图表区、应用明细区等分区组件统一落在 `ui/screens/history/RecordDetailSections.kt`
 - 记录详情页共享 UI 模型统一定义在 `ui/model/RecordDetailUiModels.kt`
 - `RecordDetailPowerStatsComputer` 负责记录详情页功耗统计
+- 记录详情原始加载链路当前已下沉到 `usecase/history/LoadRecordDetailUseCase.kt`；文件读取、`LineRecord` 解析、功耗统计、应用明细、应用切换次数与参考电压都在该 usecase 内完成
+- 记录详情图表派生链路当前已下沉到 `usecase/history/BuildRecordDetailChartUiStateUseCase.kt`；展示点映射、息屏过滤、趋势分桶与 viewport 计算都统一收敛在该 usecase
 - 详情页图表偏好通过独立的 `record_detail_chart` SharedPreferences 持久化，不进入业务配置
 - 详情页同时支持：
   - 原始/趋势/隐藏三种功率曲线模式
@@ -183,6 +186,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 
 - 只允许在 ViewModel 或明确的展示映射层统一处理
 - Compose UI 不应各自散落处理正负转换
+- 当前展示配置直接通过 `SharedSettings.readAppSettings(...)` 读取，不再经过单独的 `ReadDisplaySettingsUseCase`
 
 ### 记录详情图表
 
@@ -199,7 +203,7 @@ Sampler -> SysfsSampler / DumpsysSampler -> Monitor -> PowerRecordWriter -> CSV
 - `RecordAppStatsComputer` 负责单条放电记录内的应用维度统计
 - `RecordDetailPowerStatsComputer` 负责记录详情页平均功耗统计
 - `RecordDetailPowerStatsComputer` 当前负责基于真实采样区间计算原始平均功率与亮屏/息屏时长；记录详情页统一展示 `Wh`
-- 放电记录详情的“应用切换次数”当前由 `HistoryViewModel` 基于详情页 `LineRecord` 序列临时计算；统计口径是相邻有效采样点前后台包名都非空且发生变化时计 1 次
+- 放电记录详情的“应用切换次数”当前由 `LoadRecordDetailUseCase` 在详情加载阶段基于 `LineRecord` 序列统计；统计口径是相邻有效采样点前后台包名都非空且发生变化时计 1 次
 - 记录详情缓存命中时，必须校验缓存内 `sourceLastModified` 与源文件 `lastModified()` 一致
 
 ### 图标缓存
@@ -278,18 +282,22 @@ docs/
 | 首页 Root 启动卡片              | `app/.../ui/components/home/StartServerCard.kt`                                                                  |
 | 首页汇总卡片                    | `app/.../ui/components/home/StatsCard.kt`                                                                        |
 | 首页记录清理弹窗                  | `app/.../ui/dialog/home/RecordCleanupDialog.kt`                                                                  |
+| 首页统计加载 usecase            | `app/.../usecase/home/LoadHomeStatsUseCase.kt`                                                                   |
 | 设置页                       | `app/.../ui/screens/settings/SettingsScreen.kt`                                                                  |
 | 历史列表                      | `app/.../ui/screens/history/HistoryListScreen.kt`                                                                |
 | 记录详情页                     | `app/.../ui/screens/history/RecordDetailScreen.kt`                                                               |
 | 记录详情分区组件                  | `app/.../ui/screens/history/RecordDetailSections.kt`                                                             |
 | 记录详情 UI 模型                | `app/.../ui/model/RecordDetailUiModels.kt`                                                                       |
+| 历史列表加载 usecase              | `app/.../usecase/history/LoadHistoryListUseCase.kt`                                                              |
+| 记录详情加载 usecase              | `app/.../usecase/history/LoadRecordDetailUseCase.kt`                                                             |
+| 记录详情图表派生 usecase           | `app/.../usecase/history/BuildRecordDetailChartUiStateUseCase.kt`                                                |
 | 预测详情页                     | `app/.../ui/screens/prediction/PredictionDetailScreen.kt`                                                        |
 | 预测详情 ViewModel            | `app/.../ui/viewmodel/PredictionDetailViewModel.kt`                                                              |
 | 首页预测/场景卡片                 | `app/.../ui/components/home/PredictionCard.kt`                                                                   |
 | 图表说明弹窗                    | `app/.../ui/dialog/history/ChartGuideDialog.kt`                                                                  |
 | ViewModel                 | `app/.../ui/viewmodel/`                                                                                          |
 | 记录详情共享状态模型                | `app/.../ui/model/RecordDetailUiModels.kt`                                                                       |
-| 放电显示映射                    | `app/.../ui/viewmodel/PowerDisplayMapper.kt`                                                                     |
+| 放电显示映射                    | `app/.../ui/mapper/PowerDisplayMapper.kt`                                                                        |
 | IPC Binder 持有             | `app/.../ipc/Service.kt`                                                                                         |
 | Binder 接收 Provider        | `app/.../ipc/BinderProvider.kt`                                                                                  |
 | 配置 Provider               | `app/.../ipc/ConfigProvider.kt`                                                                                  |
@@ -338,6 +346,7 @@ docs/
 - `SettingsViewModel.init(context)` 在应用入口阶段完成 SharedPreferences 初始化
 - `BatteryRecorderApp` 当前通过 `STARTUP_PROMPT_PREFS` + `KEY_STARTUP_GUIDE_COMPLETED_V2` 判断启动引导是否完成；文档引导应保持独立弹窗入口，不要把两类 onboarding 合并成同一条状态链路
 - `HistoryViewModel` 在 `BatteryRecorderNavHost` 创建共享实例，不是“每个历史页面各建一个”
+- `MainViewModel` 当前通过 `usecase/home/LoadHomeStatsUseCase.kt` 编排首页统计、当前记录展示与预测展示加载；不要再把整段首页加载逻辑塞回 `MainViewModel`
 - 首页当前记录卡片、实时曲线与等待态统一由 `MainViewModel.currentRecordUiState` 提供
 - `HomeScreen` 会同时监听 `ACTION_BATTERY_CHANGED` 与 `IRecordListener`；前者提供当前电量/电压，后者提供实时功率与当前记录切段事件
 - `PredictionDetailViewModel` 在 `PredictionDetailScreen` 局部创建
@@ -346,7 +355,7 @@ docs/
 - `HistoryRepository` 负责文件 I/O、解析、缓存和统计，不承载 Compose 展示逻辑
 - 首页记录清理入口由 `MainViewModel.cleanupRecords(...)` 驱动；它在清理完成后会刷新首页统计与当前记录展示
 - `HistoryRepository.cleanupRecords(...)` 当前只清理可成功解析统计的普通记录；条件清理不会删除文件名非法或统计解析失败的异常文件
-- 详情页展示状态统一收敛为 `RecordDetailChartUiState`、`RecordAppDetailUiEntry` 与 `RecordDetailPowerUiState` 三类 UI 模型
+- 详情页展示状态统一收敛为 `RecordDetailChartUiState`、`RecordAppDetailUiEntry` 与 `RecordDetailSummaryUiState` 三类 UI 模型
 - 图表本地展示偏好不写入业务配置
 - 应用图标请求只基于当前视口包名集合触发
 - 页面级沉浸规则是：`Scaffold` 只吃顶部/水平安全区，底部手势区由内容层自行处理
