@@ -14,7 +14,9 @@ import kotlinx.coroutines.withContext
 import yangfentuozi.batteryrecorder.R
 import yangfentuozi.batteryrecorder.appString
 import yangfentuozi.batteryrecorder.data.history.HistoryRecord
+import yangfentuozi.batteryrecorder.data.history.HistoryRepository
 import yangfentuozi.batteryrecorder.data.history.RecordDetailPowerStats
+import yangfentuozi.batteryrecorder.shared.config.SharedSettings
 import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.LineRecord
@@ -24,16 +26,10 @@ import yangfentuozi.batteryrecorder.ui.mapper.PowerDisplayMapper
 import yangfentuozi.batteryrecorder.ui.model.RecordAppDetailUiEntry
 import yangfentuozi.batteryrecorder.ui.model.RecordDetailChartUiState
 import yangfentuozi.batteryrecorder.ui.model.RecordDetailSummaryUiState
-import yangfentuozi.batteryrecorder.usecase.common.ReadDisplaySettingsUseCase
 import yangfentuozi.batteryrecorder.usecase.history.BuildRecordDetailChartUiStateUseCase
-import yangfentuozi.batteryrecorder.usecase.history.DeleteRecordUseCase
-import yangfentuozi.batteryrecorder.usecase.history.ExportRecordUseCase
-import yangfentuozi.batteryrecorder.usecase.history.ExportRecordsUseCase
 import yangfentuozi.batteryrecorder.usecase.history.HistoryListSession
-import yangfentuozi.batteryrecorder.usecase.history.ImportRecordsUseCase
 import yangfentuozi.batteryrecorder.usecase.history.LoadHistoryListUseCase
 import yangfentuozi.batteryrecorder.usecase.history.LoadRecordDetailUseCase
-import yangfentuozi.batteryrecorder.usecase.history.RecordDetailLoadResult
 import yangfentuozi.batteryrecorder.utils.computeEnergyWh
 import kotlin.math.abs
 
@@ -205,7 +201,7 @@ class HistoryViewModel : ViewModel() {
             clearRecordDetailState()
             try {
                 detailDischargeDisplayPositive =
-                    ReadDisplaySettingsUseCase.execute(context).dischargeDisplayPositive
+                    SharedSettings.readAppSettings(context).dischargeDisplayPositive
                 recordDetailContext = context.applicationContext
                 val loadedState = LoadRecordDetailUseCase.execute(
                     context = context,
@@ -218,7 +214,14 @@ class HistoryViewModel : ViewModel() {
                     _isRecordChartLoading.value = false
                     return@launch
                 }
-                applyRecordDetailLoadResult(loadedState)
+                rawRecordDetail = loadedState.detail
+                rawRecordDetailPowerStats = loadedState.powerStats
+                rawRecordAppSwitchCount = loadedState.appSwitchCount
+                recordLineRecords = loadedState.lineRecords
+                rawRecordChartSource = loadedState.rawChartPoints
+                _recordDetailReferenceVoltageV.value = loadedState.referenceVoltageV
+                _recordAppDetailEntries.value = loadedState.appEntries
+                applyRecordDetailDisplayConfig()
                 requestRecordChartUiStateRecompute(
                     detailType = recordsFile.type,
                     expectedDetailToken = detailToken
@@ -297,7 +300,9 @@ class HistoryViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val deleted = DeleteRecordUseCase.execute(context, recordsFile)
+                val deleted = withContext(Dispatchers.IO) {
+                    HistoryRepository.deleteRecord(context, recordsFile)
+                }
                 if (deleted) {
                     val deletedName = recordsFile.name
                     val result = LoadHistoryListUseCase.removeDeletedRecord(
@@ -307,7 +312,9 @@ class HistoryViewModel : ViewModel() {
                     )
                     applyHistoryListResult(result)
                     if (_recordDetail.value?.asRecordsFile() == recordsFile) {
-                        invalidateRecordDetailAsyncTasks()
+                        detailLoadToken += 1L
+                        chartComputeToken += 1L
+                        _isRecordChartLoading.value = false
                         clearRecordDetailState()
                     }
                     _userMessage.value = appString(R.string.toast_delete_success)
@@ -334,7 +341,9 @@ class HistoryViewModel : ViewModel() {
         viewModelScope.launch {
             _isImportExporting.value = true
             try {
-                ExportRecordUseCase.execute(context, recordsFile, destinationUri)
+                withContext(Dispatchers.IO) {
+                    HistoryRepository.exportRecord(context, recordsFile, destinationUri)
+                }
                 _userMessage.value = appString(R.string.toast_export_success)
             } catch (e: CancellationException) {
                 throw e
@@ -370,12 +379,14 @@ class HistoryViewModel : ViewModel() {
         viewModelScope.launch {
             _isImportExporting.value = true
             try {
-                val exportCount = ExportRecordsUseCase.execute(
-                    context = context,
-                    type = type,
-                    destinationUri = destinationUri,
-                    records = currentExportRecords
-                )
+                val exportRecords = currentExportRecords ?: withContext(Dispatchers.IO) {
+                    HistoryRepository.listRecordFiles(context, type)
+                        .map { file -> RecordsFile.fromFile(file) }
+                }
+                withContext(Dispatchers.IO) {
+                    HistoryRepository.exportRecordsZip(context, exportRecords, destinationUri)
+                }
+                val exportCount = exportRecords.size
                 LoggerX.i(
                     TAG,
                     "[导出] 批量导出成功: type=${type.dataDirName} count=$exportCount destination=$destinationUri"
@@ -426,7 +437,9 @@ class HistoryViewModel : ViewModel() {
         viewModelScope.launch {
             _isImportExporting.value = true
             try {
-                val importResult = ImportRecordsUseCase.execute(context, type, sourceUri)
+                val importResult = withContext(Dispatchers.IO) {
+                    HistoryRepository.importRecordsZip(context, type, sourceUri)
+                }
                 val result = LoadHistoryListUseCase.reload(
                     context = context,
                     type = type,
@@ -492,17 +505,6 @@ class HistoryViewModel : ViewModel() {
         _hasMoreRecords.value = result.hasMoreRecords
     }
 
-    private fun applyRecordDetailLoadResult(result: RecordDetailLoadResult) {
-        rawRecordDetail = result.detail
-        rawRecordDetailPowerStats = result.powerStats
-        rawRecordAppSwitchCount = result.appSwitchCount
-        recordLineRecords = result.lineRecords
-        rawRecordChartSource = result.rawChartPoints
-        _recordDetailReferenceVoltageV.value = result.referenceVoltageV
-        _recordAppDetailEntries.value = result.appEntries
-        applyRecordDetailDisplayConfig()
-    }
-
     /**
      * 异步重算记录详情图表状态。
      *
@@ -564,17 +566,6 @@ class HistoryViewModel : ViewModel() {
         }
         _records.value = emptyList()
         _hasMoreRecords.value = false
-    }
-
-    /**
-     * 废弃当前详情页仍在进行中的异步任务，避免旧结果回写。
-     *
-     * @return 无返回值。
-     */
-    private fun invalidateRecordDetailAsyncTasks() {
-        detailLoadToken += 1L
-        chartComputeToken += 1L
-        _isRecordChartLoading.value = false
     }
 
     /**

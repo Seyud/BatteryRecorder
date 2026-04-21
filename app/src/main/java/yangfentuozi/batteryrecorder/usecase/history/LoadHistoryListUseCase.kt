@@ -5,12 +5,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import yangfentuozi.batteryrecorder.data.history.HistoryRecord
 import yangfentuozi.batteryrecorder.data.history.HistoryRepository
+import yangfentuozi.batteryrecorder.shared.config.SharedSettings
 import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordFileNames
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
 import yangfentuozi.batteryrecorder.ui.mapper.PowerDisplayMapper
-import yangfentuozi.batteryrecorder.usecase.common.ReadDisplaySettingsUseCase
 import java.io.File
 
 /**
@@ -59,7 +59,7 @@ internal object LoadHistoryListUseCase {
         chargeCapacityChangeFilter: Int?
     ): HistoryListUiResult {
         val dischargeDisplayPositive =
-            ReadDisplaySettingsUseCase.execute(context).dischargeDisplayPositive
+            SharedSettings.readAppSettings(context).dischargeDisplayPositive
         val files = withContext(Dispatchers.IO) {
             HistoryRepository.listRecordFiles(context, type)
         }
@@ -116,7 +116,7 @@ internal object LoadHistoryListUseCase {
         }
 
         val dischargeDisplayPositive =
-            ReadDisplaySettingsUseCase.execute(context).dischargeDisplayPositive
+            SharedSettings.readAppSettings(context).dischargeDisplayPositive
         val latestFiles = withContext(Dispatchers.IO) {
             HistoryRepository.listRecordFiles(context, type)
         }

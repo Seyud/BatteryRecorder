@@ -13,13 +13,13 @@ import yangfentuozi.batteryrecorder.data.history.PredictionResult
 import yangfentuozi.batteryrecorder.data.history.SceneStats
 import yangfentuozi.batteryrecorder.data.history.SceneStatsComputer
 import yangfentuozi.batteryrecorder.data.history.SyncUtil
+import yangfentuozi.batteryrecorder.shared.config.SharedSettings
 import yangfentuozi.batteryrecorder.shared.config.dataclass.StatisticsSettings
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
 import yangfentuozi.batteryrecorder.ui.mapper.PowerDisplayMapper
 import yangfentuozi.batteryrecorder.ui.model.HomePredictionDisplay
 import yangfentuozi.batteryrecorder.ui.model.PredictionConfidenceLevel
-import yangfentuozi.batteryrecorder.usecase.common.ReadDisplaySettingsUseCase
 
 private const val PREDICTION_DISPLAY_SCORE_OFFSET = 5
 private const val PREDICTION_CONFIDENCE_LOW_MAX = 44
@@ -74,7 +74,7 @@ internal object LoadHomeStatsUseCase {
         serviceCurrentRecordsFile: RecordsFile?
     ): HomeStatsLoadResult {
         val dischargeDisplayPositive =
-            ReadDisplaySettingsUseCase.execute(context).dischargeDisplayPositive
+            SharedSettings.readAppSettings(context).dischargeDisplayPositive
 
         withContext(Dispatchers.IO) {
             runCatching { SyncUtil.sync(context) }
