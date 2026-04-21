@@ -29,6 +29,7 @@ import yangfentuozi.batteryrecorder.shared.data.LineRecord
 import yangfentuozi.batteryrecorder.shared.util.Handlers
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.hiddenapi.compat.ServiceManagerCompat
+import yangfentuozi.hiddenapi.compat.TaskInfoCompat
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -363,37 +364,30 @@ class Monitor(
     private fun onFocusedAppChanged(taskInfo: TaskInfo, source: String) {
         val oldForegroundApp = currForegroundApp
         val componentName = taskInfo.topActivity
-        val bounds = readTaskWindowConfigurationRectProperty(
-            taskInfo,
-            methodName = "getBounds",
-            fieldName = "bounds"
-        )
-        val maxBounds = readTaskWindowConfigurationRectProperty(
-            taskInfo,
-            methodName = "getMaxBounds",
-            fieldName = "maxBounds"
-        )
+        val bounds = TaskInfoCompat.getBoundsOrNull(taskInfo)
+        val maxBounds = TaskInfoCompat.getMaxBoundsOrNull(taskInfo)
         val boundsText = formatRect(bounds)
         val maxBoundsText = formatRect(maxBounds)
         if (componentName == null) {
             LoggerX.v(
                 tag,
-                "foreground:top-null source=$source taskId=${taskInfo.taskId} bounds=$boundsText maxBounds=$maxBoundsText old=$oldForegroundApp"
+                "前台应用检测: source=$source taskId=${taskInfo.taskId} 当前应用包名=无 是否小窗=未知 是否切换前台应用=否 原因=当前任务没有顶部Activity 当前窗口=$boundsText 最大窗口=$maxBoundsText 旧前台应用=$oldForegroundApp"
             )
             return
         }
         val packageName = componentName.packageName
         val className = componentName.className
-        if (isSmallWindow(bounds, maxBounds)) {
+        val isSmallWindow = isSmallWindow(bounds, maxBounds)
+        if (isSmallWindow) {
             LoggerX.i(
                 tag,
-                "foreground:small-window-ignored source=$source taskId=${taskInfo.taskId} pkg=$packageName cls=$className bounds=$boundsText maxBounds=$maxBoundsText old=$oldForegroundApp new=$packageName"
+                "前台应用检测: source=$source taskId=${taskInfo.taskId} 当前应用包名=$packageName 当前Activity=$className 是否小窗=是 是否切换前台应用=否 原因=命中小窗规则 当前窗口=$boundsText 最大窗口=$maxBoundsText 旧前台应用=$oldForegroundApp"
             )
             return
         }
         LoggerX.v(
             tag,
-            "foreground:$source taskId=${taskInfo.taskId} pkg=$packageName cls=$className bounds=$boundsText maxBounds=$maxBoundsText old=$oldForegroundApp new=$packageName"
+            "前台应用检测: source=$source taskId=${taskInfo.taskId} 当前应用包名=$packageName 当前Activity=$className 是否小窗=否 是否切换前台应用=是 当前窗口=$boundsText 最大窗口=$maxBoundsText 旧前台应用=$oldForegroundApp 新前台应用=$packageName"
         )
         currForegroundApp = packageName
     }
@@ -424,63 +418,6 @@ class Monitor(
     private fun formatRect(rect: Rect?): String {
         if (rect == null) return "unavailable"
         return "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
-    }
-
-    /**
-     * 通过 `TaskInfo -> Configuration -> WindowConfiguration` 反射读取窗口配置对象上的 `Rect` 属性。
-     *
-     * @param taskInfo 当前任务栈信息。
-     * @param methodName 优先尝试调用的 WindowConfiguration getter 方法名。
-     * @param fieldName getter 不可用时尝试读取的 WindowConfiguration 字段名。
-     * @return 成功时返回窗口边界；成员不存在或类型不符返回 `null`。
-     */
-    private fun readTaskWindowConfigurationRectProperty(
-        taskInfo: TaskInfo,
-        methodName: String,
-        fieldName: String
-    ): Rect? {
-        val configuration = readProperty(taskInfo, "getConfiguration", "configuration")
-            ?: return null
-        val windowConfiguration =
-            readProperty(configuration, "getWindowConfiguration", "windowConfiguration")
-                ?: return null
-        return readProperty(windowConfiguration, methodName, fieldName) as? Rect
-    }
-
-    /**
-     * 通过反射读取对象属性，优先 getter，其次字段；同时兼容 public 与 declared 成员。
-     *
-     * @param target 要读取属性的对象。
-     * @param methodName 优先尝试调用的 getter 方法名。
-     * @param fieldName getter 不可用时尝试读取的字段名。
-     * @return 读取成功返回属性值，否则返回 `null`。
-     */
-    private fun readProperty(target: Any, methodName: String, fieldName: String): Any? {
-        try {
-            return target.javaClass.getMethod(methodName).invoke(target)
-        } catch (_: NoSuchMethodException) {
-        }
-
-        try {
-            val method = target.javaClass.getDeclaredMethod(methodName)
-            method.isAccessible = true
-            return method.invoke(target)
-        } catch (_: NoSuchMethodException) {
-        }
-
-        try {
-            return target.javaClass.getField(fieldName).get(target)
-        } catch (_: NoSuchFieldException) {
-        }
-
-        try {
-            val field = target.javaClass.getDeclaredField(fieldName)
-            field.isAccessible = true
-            return field.get(target)
-        } catch (_: NoSuchFieldException) {
-        }
-
-        return null
     }
 
     // 耗时操作
