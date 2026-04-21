@@ -154,8 +154,7 @@ public final class TaskInfoCompat {
         if (method != null) {
             try {
                 return method.invoke(target);
-            } catch (ReflectiveOperationException e) {
-                Log.w(TAG, "调用隐藏方法失败", e);
+            } catch (Throwable ignored) {
             }
         }
         if (field != null) {
@@ -168,8 +167,7 @@ public final class TaskInfoCompat {
     private static Object readFieldValue(@NonNull Object target, @NonNull Field field) {
         try {
             return field.get(target);
-        } catch (IllegalAccessException e) {
-            Log.w(TAG, "读取隐藏字段失败", e);
+        } catch (Throwable ignored) {
             return null;
         }
     }
@@ -184,7 +182,7 @@ public final class TaskInfoCompat {
             final Method method = type.getDeclaredMethod(name);
             method.setAccessible(true);
             return method;
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             Log.w(TAG, "查找隐藏方法失败: " + type.getName() + "#" + name, e);
             return null;
         }
@@ -206,7 +204,7 @@ public final class TaskInfoCompat {
             final Field field = type.getDeclaredField(name);
             field.setAccessible(true);
             return field;
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             Log.w(TAG, "查找隐藏字段失败: " + type.getName() + "#" + name, e);
             return null;
         }
@@ -222,7 +220,7 @@ public final class TaskInfoCompat {
     private static Class<?> findClass(@NonNull String className) {
         try {
             return Class.forName(className);
-        } catch (ClassNotFoundException e) {
+        } catch (Throwable e) {
             Log.w(TAG, "查找隐藏类失败: " + className, e);
             return null;
         }
