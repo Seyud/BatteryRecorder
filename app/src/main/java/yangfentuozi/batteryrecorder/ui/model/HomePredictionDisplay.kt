@@ -13,5 +13,6 @@ data class HomePredictionDisplay(
     val screenOffCurrentHours: Double? = null,
     val screenOffFullHours: Double? = null,
     val screenOnDailyCurrentHours: Double? = null,
-    val screenOnDailyFullHours: Double? = null
+    val screenOnDailyFullHours: Double? = null,
+    val score: Double? = null
 )

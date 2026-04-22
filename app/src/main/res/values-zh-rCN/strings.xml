@@ -67,6 +67,7 @@
     <string name="home_prediction_title">续航预测</string>
     <string name="home_prediction_screen_off">息屏</string>
     <string name="home_prediction_screen_on_daily">亮屏日常</string>
+    <string name="home_prediction_score">续航得分</string>
     <string name="home_scene_stats_title">场景统计</string>
     <string name="home_scene_stats_screen_off_avg">息屏平均</string>
     <string name="home_scene_stats_screen_on_daily">亮屏日常</string>

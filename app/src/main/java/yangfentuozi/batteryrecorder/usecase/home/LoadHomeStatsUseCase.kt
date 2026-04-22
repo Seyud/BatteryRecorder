@@ -24,6 +24,8 @@ import yangfentuozi.batteryrecorder.ui.model.PredictionConfidenceLevel
 private const val PREDICTION_DISPLAY_SCORE_OFFSET = 5
 private const val PREDICTION_CONFIDENCE_LOW_MAX = 44
 private const val PREDICTION_CONFIDENCE_MEDIUM_MAX = 74
+private const val BRIGHT_SCREEN_FULL_SCORE_BASE = 0.75
+private const val BRIGHT_SCREEN_FULL_SCORE_CONFIDENCE_WEIGHT = 0.25
 
 private sealed interface CurrentRecordDisplayLoadResult {
     data class Success(val record: HistoryRecord) : CurrentRecordDisplayLoadResult
@@ -254,7 +256,13 @@ internal object LoadHomeStatsUseCase {
             screenOffCurrentHours = prediction.screenOffCurrentHours,
             screenOffFullHours = prediction.screenOffFullHours,
             screenOnDailyCurrentHours = prediction.screenOnDailyCurrentHours,
-            screenOnDailyFullHours = prediction.screenOnDailyFullHours
+            screenOnDailyFullHours = prediction.screenOnDailyFullHours,
+            score = prediction.screenOnDailyFullHours?.let { fullHours ->
+                val confidence = prediction.confidenceScore / 100.0
+                fullHours * 3600.0 *
+                    (BRIGHT_SCREEN_FULL_SCORE_BASE +
+                        BRIGHT_SCREEN_FULL_SCORE_CONFIDENCE_WEIGHT * confidence)
+            }
         )
     }
 

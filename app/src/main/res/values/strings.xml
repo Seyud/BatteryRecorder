@@ -67,6 +67,7 @@
     <string name="home_prediction_title">Battery life prediction</string>
     <string name="home_prediction_screen_off">Screen off</string>
     <string name="home_prediction_screen_on_daily">Screen-on daily use</string>
+    <string name="home_prediction_score">Battery life score</string>
     <string name="home_scene_stats_title">Scene stats</string>
     <string name="home_scene_stats_screen_off_avg">Screen-off average</string>
     <string name="home_scene_stats_screen_on_daily">Screen-on daily use</string>

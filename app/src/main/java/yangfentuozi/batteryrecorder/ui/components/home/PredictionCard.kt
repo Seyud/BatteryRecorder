@@ -24,6 +24,7 @@ import yangfentuozi.batteryrecorder.ui.model.HomePredictionDisplay
 import yangfentuozi.batteryrecorder.utils.computePowerW
 import yangfentuozi.batteryrecorder.utils.formatFullRemainingTime
 import yangfentuozi.batteryrecorder.utils.formatRemainingTime
+import java.util.Locale
 
 /**
  * 首页卡片统一显示“当前电量 / 满电”两种口径，缺数据时保持一致文案。
@@ -87,6 +88,12 @@ fun PredictionCard(
                     currentHours = predictionDisplay.screenOnDailyCurrentHours,
                     fullHours = predictionDisplay.screenOnDailyFullHours
                 ),
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            StatRow(
+                label = stringResource(R.string.home_prediction_score),
+                value = predictionDisplay.score?.let { String.format(Locale.getDefault(), "%.0f", it) }
+                    ?: appString(R.string.common_insufficient_data),
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
