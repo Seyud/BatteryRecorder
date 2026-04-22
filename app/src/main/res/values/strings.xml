@@ -241,7 +241,7 @@
     <string name="history_item_summary">Duration %1$s · Battery %2$d%%</string>
     <string name="history_record_detail_title">Record details</string>
     <string name="history_export_record">Export record</string>
-    <string name="history_delete_record">Delete record</string>
+    <string name="history_save_long_screenshot">Save long screenshot</string>
     <string name="history_view_chart_guide">View chart guide</string>
     <string name="history_record_type_charging">Charging record</string>
     <string name="history_record_type_discharging">Discharging record</string>
@@ -255,8 +255,6 @@
     <string name="history_info_screen_off">Screen off</string>
     <string name="history_chart_section_title">Power / Battery curve</string>
     <string name="history_app_detail_section_title">App details</string>
-    <string name="history_delete_title">Delete record</string>
-    <string name="history_delete_message">This action cannot be undone. Continue?</string>
     <string name="history_power_stats_label">Global avg / Screen-on avg / Screen-off avg</string>
     <string name="history_power_unknown">Power ?</string>
     <string name="history_chart_guide_title">Chart guide</string>
@@ -283,6 +281,8 @@
     <string name="toast_export_success">Export successful</string>
     <string name="toast_export_partial_success">App logs exported, Server log export failed</string>
     <string name="toast_export_failed">Export failed</string>
+    <string name="toast_save_image_success">Long screenshot saved to Photos</string>
+    <string name="toast_save_image_failed">Failed to save long screenshot</string>
     <string name="toast_delete_success">Deleted successfully</string>
     <string name="toast_delete_failed">Delete failed</string>
     <string name="toast_import_success">Imported successfully, %1$d items</string>

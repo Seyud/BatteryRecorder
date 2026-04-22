@@ -241,7 +241,7 @@
     <string name="history_item_summary">时长 %1$s · 电量 %2$d%%</string>
     <string name="history_record_detail_title">记录详情</string>
     <string name="history_export_record">导出记录</string>
-    <string name="history_delete_record">删除记录</string>
+    <string name="history_save_long_screenshot">保存长截图</string>
     <string name="history_view_chart_guide">查看图表说明</string>
     <string name="history_record_type_charging">充电记录</string>
     <string name="history_record_type_discharging">放电记录</string>
@@ -255,8 +255,6 @@
     <string name="history_info_screen_off">息屏</string>
     <string name="history_chart_section_title">功耗/电量曲线</string>
     <string name="history_app_detail_section_title">应用详情</string>
-    <string name="history_delete_title">删除记录</string>
-    <string name="history_delete_message">删除后不可恢复，确认继续吗？</string>
     <string name="history_power_stats_label">全局平均/亮屏平均/息屏平均</string>
     <string name="history_power_unknown">功耗 ?</string>
     <string name="history_chart_guide_title">图表使用说明</string>
@@ -283,6 +281,8 @@
     <string name="toast_export_success">导出成功</string>
     <string name="toast_export_partial_success">App 日志已导出，Server 日志导出失败</string>
     <string name="toast_export_failed">导出失败</string>
+    <string name="toast_save_image_success">长截图已保存到相册</string>
+    <string name="toast_save_image_failed">保存长截图失败</string>
     <string name="toast_delete_success">删除成功</string>
     <string name="toast_delete_failed">删除失败</string>
     <string name="toast_import_success">导入成功，共 %1$d 条</string>

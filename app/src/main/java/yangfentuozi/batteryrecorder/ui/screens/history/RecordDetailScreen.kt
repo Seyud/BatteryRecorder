@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.ui.screens.history
 
 import android.app.Activity
+import android.graphics.Bitmap
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
@@ -14,19 +15,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Outbox
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,15 +36,25 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import yangfentuozi.batteryrecorder.R
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.RecordsFile
@@ -51,10 +62,14 @@ import yangfentuozi.batteryrecorder.ui.components.charts.PowerCurveMode
 import yangfentuozi.batteryrecorder.ui.dialog.history.ChartGuideDialog
 import yangfentuozi.batteryrecorder.ui.viewmodel.HistorySharedViewModel
 import yangfentuozi.batteryrecorder.ui.viewmodel.SettingsViewModel
+import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.batteryrecorder.utils.batteryRecorderScaffoldInsets
+import yangfentuozi.batteryrecorder.utils.buildRecordDetailScreenshotFileName
+import yangfentuozi.batteryrecorder.utils.captureLongScreenshot
 import yangfentuozi.batteryrecorder.utils.formatChargeDetailBatteryInfo
 import yangfentuozi.batteryrecorder.utils.navigationBarBottomPadding
 import yangfentuozi.batteryrecorder.utils.readDeviceBatteryCapacityMah
+import yangfentuozi.batteryrecorder.utils.saveBitmapToPictures
 
 private const val RECORD_DETAIL_CHART_PREFS_NAME = "record_detail_chart"
 private const val KEY_POWER_CURVE_MODE = "power_curve_mode"
@@ -62,6 +77,7 @@ private const val KEY_SHOW_CAPACITY_CURVE = "show_capacity_curve"
 private const val KEY_SHOW_TEMP_CURVE = "show_temp_curve"
 private const val KEY_SHOW_VOLTAGE_CURVE = "show_voltage_curve"
 private const val KEY_SHOW_APP_ICONS = "show_app_icons"
+private const val TAG = "RecordDetailScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +90,7 @@ fun RecordDetailScreen(
     val context = LocalContext.current
     val locale = LocalLocale.current.platformLocale
     val activity = remember(context) { context.findActivity() }
+    val coroutineScope = rememberCoroutineScope()
     val record by viewModel.recordDetail.collectAsState()
     val chartUiState by viewModel.recordChartUiState.collectAsState()
     val recordAppDetailEntries by viewModel.recordAppDetailEntries.collectAsState()
@@ -87,9 +104,16 @@ fun RecordDetailScreen(
     val calibrationValue by settingsViewModel.calibrationValue.collectAsState()
     val recordIntervalMs by settingsViewModel.recordIntervalMs.collectAsState()
     val recordScreenOffEnabled by settingsViewModel.screenOffRecord.collectAsState()
+    val detailScrollState = rememberScrollState()
+    val longScreenshotLayer = rememberGraphicsLayer()
+    val screenshotBackgroundColor = MaterialTheme.colorScheme.background
+    val deleteSuccessMessage = stringResource(R.string.toast_delete_success)
+    val saveImageSuccessMessage = stringResource(R.string.toast_save_image_success)
+    val saveImageFailedMessage = stringResource(R.string.toast_save_image_failed)
     val chartPrefs = remember(context) {
         context.getSharedPreferences(RECORD_DETAIL_CHART_PREFS_NAME, Context.MODE_PRIVATE)
     }
+    var longScreenshotViewportSize by remember { mutableStateOf(IntSize.Zero) }
     val chargeDetailBatteryInfoText = remember(
         context,
         locale,
@@ -124,8 +148,8 @@ fun RecordDetailScreen(
     }
     var isChartFullscreen by rememberSaveable(recordsFile) { mutableStateOf(false) }
     var fullscreenViewportStartMs by rememberSaveable(recordsFile) { mutableStateOf<Long?>(null) }
-    var showDeleteDialog by rememberSaveable(recordsFile) { mutableStateOf(false) }
     var showGuideDialog by rememberSaveable(recordsFile) { mutableStateOf(false) }
+    var isSavingLongScreenshot by remember(recordsFile) { mutableStateOf(false) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
@@ -160,7 +184,7 @@ fun RecordDetailScreen(
         val message = userMessage ?: return@LaunchedEffect
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         viewModel.consumeUserMessage()
-        if (message == context.getString(R.string.toast_delete_success)) {
+        if (message == deleteSuccessMessage) {
             onNavigateBack()
         }
     }
@@ -196,7 +220,8 @@ fun RecordDetailScreen(
                     title = { Text(stringResource(R.string.history_record_detail_title)) },
                     actions = {
                         IconButton(
-                            onClick = { exportLauncher.launch(recordsFile.name) }
+                            onClick = { exportLauncher.launch(recordsFile.name) },
+                            enabled = !isSavingLongScreenshot
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Outbox,
@@ -204,15 +229,57 @@ fun RecordDetailScreen(
                             )
                         }
                         IconButton(
-                            onClick = { showDeleteDialog = true }
+                            onClick = {
+                                coroutineScope.launch {
+                                    isSavingLongScreenshot = true
+                                    var screenshotBitmap: Bitmap? = null
+                                    try {
+                                        screenshotBitmap = captureLongScreenshot(
+                                            scrollState = detailScrollState,
+                                            viewportSize = longScreenshotViewportSize,
+                                            graphicsLayer = longScreenshotLayer,
+                                            backgroundColorArgb = screenshotBackgroundColor.toArgb()
+                                        )
+                                        val capturedBitmap = screenshotBitmap
+                                        withContext(Dispatchers.IO) {
+                                            saveBitmapToPictures(
+                                                context = context,
+                                                displayName = buildRecordDetailScreenshotFileName(recordsFile),
+                                                bitmap = capturedBitmap
+                                            )
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            saveImageSuccessMessage,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } catch (e: Exception) {
+                                        LoggerX.e(
+                                            TAG,
+                                            "[截图] 保存记录详情长截图失败: ${recordsFile.name}",
+                                            tr = e
+                                        )
+                                        Toast.makeText(
+                                            context,
+                                            saveImageFailedMessage,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } finally {
+                                        screenshotBitmap?.recycle()
+                                        isSavingLongScreenshot = false
+                                    }
+                                }
+                            },
+                            enabled = !isSavingLongScreenshot
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.DeleteOutline,
-                                contentDescription = stringResource(R.string.history_delete_record)
+                                imageVector = Icons.Outlined.SaveAlt,
+                                contentDescription = stringResource(R.string.history_save_long_screenshot)
                             )
                         }
                         IconButton(
-                            onClick = { showGuideDialog = true }
+                            onClick = { showGuideDialog = true },
+                            enabled = !isSavingLongScreenshot
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Info,
@@ -292,11 +359,20 @@ fun RecordDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(screenshotBackgroundColor)
+                .onSizeChanged { longScreenshotViewportSize = it }
+                .drawWithContent {
+                    longScreenshotLayer.record {
+                        drawRect(screenshotBackgroundColor)
+                        this@drawWithContent.drawContent()
+                    }
+                    drawLayer(longScreenshotLayer)
+                }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(detailScrollState)
                     .padding(
                         start = 16.dp,
                         top = 16.dp,
@@ -367,29 +443,6 @@ fun RecordDetailScreen(
     if (showGuideDialog) {
         ChartGuideDialog(
             onDismiss = { showGuideDialog = false }
-        )
-    }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.history_delete_title)) },
-            text = { Text(stringResource(R.string.history_delete_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        viewModel.deleteRecord(context, recordsFile)
-                    }
-                ) {
-                    Text(stringResource(R.string.common_delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            }
         )
     }
 }
