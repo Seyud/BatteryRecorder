@@ -20,12 +20,15 @@ import yangfentuozi.batteryrecorder.shared.data.RecordsFile
 import yangfentuozi.batteryrecorder.ui.mapper.PowerDisplayMapper
 import yangfentuozi.batteryrecorder.ui.model.HomePredictionDisplay
 import yangfentuozi.batteryrecorder.ui.model.PredictionConfidenceLevel
+import kotlin.math.abs
 
 private const val PREDICTION_DISPLAY_SCORE_OFFSET = 5
 private const val PREDICTION_CONFIDENCE_LOW_MAX = 44
 private const val PREDICTION_CONFIDENCE_MEDIUM_MAX = 74
-private const val BRIGHT_SCREEN_FULL_SCORE_BASE = 0.75
-private const val BRIGHT_SCREEN_FULL_SCORE_CONFIDENCE_WEIGHT = 0.25
+private const val HOME_PREDICTION_SCORE_SMOOTHING_ALPHA = 0.4
+private const val HOME_PREDICTION_SCORE_PREFS_NAME = "home_prediction_score"
+private const val HOME_PREDICTION_SCORE_KEY = "score"
+private const val HOME_PREDICTION_SCORE_CONFIG_KEY = "score_config_key"
 
 private sealed interface CurrentRecordDisplayLoadResult {
     data class Success(val record: HistoryRecord) : CurrentRecordDisplayLoadResult
@@ -176,7 +179,11 @@ internal object LoadHomeStatsUseCase {
             sceneStats = stats.displayStats,
             shouldUpdatePrediction = shouldRefreshPrediction,
             prediction = prediction,
-            predictionDisplay = if (shouldRefreshPrediction) buildPredictionDisplay(prediction) else null,
+            predictionDisplay = if (shouldRefreshPrediction) {
+                buildPredictionDisplay(context, request, prediction, stats.homePredictionInputs)
+            } else {
+                null
+            },
             currentRecordFailureMessage = currentRecordFailureMessage
         )
     }
@@ -239,7 +246,12 @@ internal object LoadHomeStatsUseCase {
      * @param prediction 首页预测算法返回的原始结果。
      * @return 返回首页卡片展示数据；为空时返回空值。
      */
-    private fun buildPredictionDisplay(prediction: PredictionResult?): HomePredictionDisplay? {
+    private fun buildPredictionDisplay(
+        context: Context,
+        request: StatisticsSettings,
+        prediction: PredictionResult?,
+        homePredictionInputs: yangfentuozi.batteryrecorder.data.history.HomePredictionInputs?
+    ): HomePredictionDisplay? {
         if (prediction == null) {
             return null
         }
@@ -251,19 +263,71 @@ internal object LoadHomeStatsUseCase {
 
         val adjustedScore =
             (prediction.confidenceScore + PREDICTION_DISPLAY_SCORE_OFFSET).coerceIn(0, 100)
+        val rawHistoricalScore = homePredictionInputs?.let { inputs ->
+            val sceneStats = inputs.sceneStats ?: return@let null
+            val historicalK = inputs.kBase
+            if (
+                historicalK == null ||
+                historicalK <= 0.0 ||
+                sceneStats.screenOnDailyTotalMs < 30 * 60 * 1000L ||
+                abs(sceneStats.screenOnDailyAvgPowerRaw) <= 0.0
+            ) {
+                return@let null
+            }
+            val drainPerMs = historicalK * abs(sceneStats.screenOnDailyAvgPowerRaw)
+            if (drainPerMs <= 0.0 || !drainPerMs.isFinite()) {
+                return@let null
+            }
+            val historicalFullHours = 99.0 / (drainPerMs * 3_600_000.0)
+            if (!historicalFullHours.isFinite() || historicalFullHours <= 0.0) {
+                return@let null
+            }
+            val confidence = prediction.confidenceScore / 100.0
+            historicalFullHours * 3600.0 * (0.75 + 0.25 * confidence)
+        }
+        val score = rawHistoricalScore?.let { rawScore ->
+            val prefs = context.applicationContext.getSharedPreferences(
+                HOME_PREDICTION_SCORE_PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+            val currentConfigKey = buildPredictionScoreConfigKey(request)
+            val previousConfigKey = prefs.getString(HOME_PREDICTION_SCORE_CONFIG_KEY, null)
+            val smoothedScore = if (
+                previousConfigKey == currentConfigKey &&
+                prefs.contains(HOME_PREDICTION_SCORE_KEY)
+            ) {
+                val previousScore = Double.fromBits(prefs.getLong(HOME_PREDICTION_SCORE_KEY, 0L))
+                HOME_PREDICTION_SCORE_SMOOTHING_ALPHA * rawScore +
+                    (1.0 - HOME_PREDICTION_SCORE_SMOOTHING_ALPHA) * previousScore
+            } else {
+                rawScore
+            }
+            prefs.edit()
+                .putLong(HOME_PREDICTION_SCORE_KEY, smoothedScore.toBits())
+                .putString(HOME_PREDICTION_SCORE_CONFIG_KEY, currentConfigKey)
+                .apply()
+            smoothedScore
+        }
         return HomePredictionDisplay(
             confidenceLevel = mapPredictionConfidenceLevel(adjustedScore),
             screenOffCurrentHours = prediction.screenOffCurrentHours,
             screenOffFullHours = prediction.screenOffFullHours,
             screenOnDailyCurrentHours = prediction.screenOnDailyCurrentHours,
             screenOnDailyFullHours = prediction.screenOnDailyFullHours,
-            score = prediction.screenOnDailyFullHours?.let { fullHours ->
-                val confidence = prediction.confidenceScore / 100.0
-                fullHours * 3600.0 *
-                    (BRIGHT_SCREEN_FULL_SCORE_BASE +
-                        BRIGHT_SCREEN_FULL_SCORE_CONFIDENCE_WEIGHT * confidence)
-            }
+            score = score
         )
+    }
+
+    private fun buildPredictionScoreConfigKey(request: StatisticsSettings): String {
+        val sortedGamePackages = request.gamePackages.toList().sorted().joinToString(",")
+        val sortedGameBlacklist = request.gameBlacklist.toList().sorted().joinToString(",")
+        return listOf(
+            request.sceneStatsRecentFileCount.toString(),
+            request.predWeightedAlgorithmEnabled.toString(),
+            request.predWeightedAlgorithmAlphaMaxX100.toString(),
+            sortedGamePackages,
+            sortedGameBlacklist
+        ).joinToString("|")
     }
 
     /**
