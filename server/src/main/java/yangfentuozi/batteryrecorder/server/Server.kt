@@ -113,8 +113,4 @@ abstract class Server(
         monitor.start()
         LoggerX.i(TAG, "init: Server 已启动")
     }
-
-    companion object {
-        const val SOCKET_NAME = "BatteryRecorder_Server"
-    }
 }

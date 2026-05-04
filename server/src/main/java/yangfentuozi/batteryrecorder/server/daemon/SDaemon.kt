@@ -12,7 +12,6 @@ import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import yangfentuozi.batteryrecorder.server.Server
-import yangfentuozi.batteryrecorder.server.Server.Companion.SOCKET_NAME
 import yangfentuozi.batteryrecorder.server.notification.server.ChildServerBridge
 import yangfentuozi.batteryrecorder.server.sampler.DumpsysSampler
 import yangfentuozi.batteryrecorder.server.sampler.SysfsSampler
@@ -40,6 +39,7 @@ import kotlin.system.exitProcess
 
 private const val TAG = "SDaemon"
 private const val SERVER_PROCESS_NAME = "batteryrecorder_server"
+private const val SOCKET_NAME = "BatteryRecorder_Server"
 
 // server daemon
 class SDaemon : Daemon(SERVER_PROCESS_NAME) {
