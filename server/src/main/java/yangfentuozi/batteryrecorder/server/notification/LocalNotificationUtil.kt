@@ -15,19 +15,14 @@ import android.os.ServiceManager
 import yangfentuozi.batteryrecorder.server.fakecontext.FakeContext
 import yangfentuozi.batteryrecorder.shared.Constants
 import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.hiddenapi.compat.NotificationManagerCompat
 import java.util.Locale
 
+private const val TAG = "LocalNotificationUtil"
 
-class LocalNotificationUtil(
-    @Volatile
-    private var compatibilityModeEnabled: Boolean = SettingsConstants.notificationCompatModeEnabled.def,
-    @Volatile
-    private var iconCompatibilityModeEnabled: Boolean = SettingsConstants.notificationIconCompatModeEnabled.def
-) : NotificationUtil {
-
-    private val tag = "LocalNotificationUtil"
+class LocalNotificationUtil: NotificationUtil {
 
     private val lock = Any()
     private val notificationManager: INotificationManager =
@@ -36,11 +31,12 @@ class LocalNotificationUtil(
     private val context = FakeContext()
 
     @Volatile
-    private var channelCreated = false
+    private var compatibilityModeEnabled: Boolean = SettingsConstants.notificationCompatModeEnabled.def
+    @Volatile
+    private var iconCompatibilityModeEnabled: Boolean = SettingsConstants.notificationIconCompatModeEnabled.def
 
     init {
         synchronized(lock) {
-            if (channelCreated) return@synchronized
             try {
                 NotificationManagerCompat.createChannel(
                     notificationManager,
@@ -55,36 +51,30 @@ class LocalNotificationUtil(
                         enableVibration(false)
                     }
                 )
-                channelCreated = true
-                LoggerX.i(tag, "init: 通知渠道创建成功")
+                LoggerX.i(TAG, "init: 通知渠道创建成功")
             } catch (e: RemoteException) {
-                LoggerX.e(tag, "init: 通知渠道创建失败", tr = e)
+                LoggerX.e(TAG, "init: 通知渠道创建失败", tr = e)
             }
         }
     }
 
-    /**
-     * 更新当前通知实现是否复用 Builder。
-     *
-     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用单个 Builder。
-     * @return 无。
-     */
-    override fun setCompatibilityModeEnabled(enabled: Boolean) {
+    override fun syncSettings(settings: ServerSettings) {
         synchronized(lock) {
-            if (compatibilityModeEnabled == enabled) return
-            LoggerX.i(tag, "setCompatibilityModeEnabled: $compatibilityModeEnabled -> $enabled")
-            compatibilityModeEnabled = enabled
-        }
-    }
+            if (iconCompatibilityModeEnabled == settings.notificationIconCompatModeEnabled) {
+                LoggerX.i(
+                    TAG,
+                    "onSettingsUpdate: iconCompatibilityModeEnabled $iconCompatibilityModeEnabled -> ${settings.notificationIconCompatModeEnabled}"
+                )
+                iconCompatibilityModeEnabled = settings.notificationIconCompatModeEnabled
+            }
 
-    override fun setIconCompatibilityModeEnabled(enabled: Boolean) {
-        synchronized(lock) {
-            if (iconCompatibilityModeEnabled == enabled) return
-            LoggerX.i(
-                tag,
-                "setIconCompatibilityModeEnabled: $iconCompatibilityModeEnabled -> $enabled"
-            )
-            iconCompatibilityModeEnabled = enabled
+            if (compatibilityModeEnabled != settings.notificationCompatModeEnabled) {
+                LoggerX.i(
+                    TAG,
+                    "onSettingsUpdate: compatibilityModeEnabled $compatibilityModeEnabled -> ${settings.notificationCompatModeEnabled}"
+                )
+                compatibilityModeEnabled = settings.notificationCompatModeEnabled
+            }
         }
     }
 
@@ -100,7 +90,7 @@ class LocalNotificationUtil(
                     0
                 )
             } catch (e: RemoteException) {
-                LoggerX.e(tag, "updateNotification: 发送通知失败", tr = e)
+                LoggerX.e(TAG, "updateNotification: 发送通知失败", tr = e)
             }
         }
     }
@@ -129,6 +119,7 @@ class LocalNotificationUtil(
         return builder.setContentText(contentText)
             .setTicker(contentText)
             .build().apply {
+                @Suppress("DEPRECATION")
                 if (iconCompatibilityModeEnabled) {
                     contentView = null
                     bigContentView = null
@@ -146,16 +137,16 @@ class LocalNotificationUtil(
             val appInfo = context.packageManager.getApplicationInfo(Constants.APP_PACKAGE_NAME, 0)
             val iconResId = appInfo.icon
             if (iconResId == 0) {
-                LoggerX.w(tag, "buildSmallIcon: 应用图标资源为空，回退系统图标")
+                LoggerX.w(TAG, "buildSmallIcon: 应用图标资源为空，回退系统图标")
                 defaultIcon
             } else {
                 Icon.createWithResource(Constants.APP_PACKAGE_NAME, iconResId)
             }
         } catch (e: PackageManager.NameNotFoundException) {
-            LoggerX.w(tag, "buildSmallIcon: 未找到应用包，回退系统图标", tr = e)
+            LoggerX.w(TAG, "buildSmallIcon: 未找到应用包，回退系统图标", tr = e)
             defaultIcon
         } catch (e: Throwable) {
-            LoggerX.e(tag, "buildSmallIcon: 读取应用图标失败，回退系统图标", tr = e)
+            LoggerX.e(TAG, "buildSmallIcon: 读取应用图标失败，回退系统图标", tr = e)
             defaultIcon
         }
     }

@@ -8,6 +8,7 @@ import yangfentuozi.batteryrecorder.server.notification.LocalNotificationUtil
 import yangfentuozi.batteryrecorder.server.notification.NotificationUtil
 import yangfentuozi.batteryrecorder.server.notification.server.stream.NotificationStreamMessage
 import yangfentuozi.batteryrecorder.server.notification.server.stream.StreamReader
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import yangfentuozi.batteryrecorder.shared.util.Handlers
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import yangfentuozi.hiddenapi.compat.ServiceManagerCompat
@@ -38,10 +39,8 @@ class NotificationServer {
                 when (val message = reader!!.readNext() ?: break) {
                     is NotificationStreamMessage.Data -> notificationUtil.updateNotification(message.info)
                     NotificationStreamMessage.CancelNotification -> notificationUtil.cancelNotification()
-                    is NotificationStreamMessage.SetCompatibilityMode ->
-                        notificationUtil.setCompatibilityModeEnabled(message.enabled)
-                    is NotificationStreamMessage.SetIconCompatibilityMode ->
-                        notificationUtil.setIconCompatibilityModeEnabled(message.enabled)
+                    is NotificationStreamMessage.Settings ->
+                        message.settings?.let { syncSettings(it) }
                     NotificationStreamMessage.Stop -> {
                         isStopped = true
                         Handlers.main.post { exitProcess(0) }
@@ -85,16 +84,22 @@ class NotificationServer {
         LoggerX.i(TAG, "init: 创建 LocalServerSocket 通信服务")
         serverSocket = LocalServerSocket(SOCKET_NAME)
 
-        Runtime.getRuntime().addShutdownHook(Thread { this.stopServiceImmediately() })
+        Runtime.getRuntime().addShutdownHook(Thread { this.stopServerInternal() })
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             LoggerX.a(thread.name, "NotificationServer crashed", tr = throwable)
-            LoggerX.writer?.close()
         }
         serverThread.start()
         Looper.loop()
     }
 
-    private fun stopServiceImmediately() {
+    fun syncSettings(settings: ServerSettings) {
+        LoggerX.d(TAG, "syncSettings: 应用配置: $settings")
+        LoggerX.maxHistoryDays = settings.maxHistoryDays
+        LoggerX.logLevel = settings.logLevel
+        notificationUtil.syncSettings(settings)
+    }
+
+    private fun stopServerInternal() {
         if (cleanedUp) return
         LoggerX.i(TAG, "停止服务")
         cleanedUp = true
@@ -105,6 +110,7 @@ class NotificationServer {
             socket?.let { runCatching { it.close() } }
             notificationUtil.cancelNotification()
             serverSocket.close()
+            LoggerX.writer?.close()
         }
     }
 

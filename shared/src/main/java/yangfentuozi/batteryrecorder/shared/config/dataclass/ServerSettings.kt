@@ -2,6 +2,7 @@ package yangfentuozi.batteryrecorder.shared.config.dataclass
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import kotlinx.serialization.Serializable
 import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 
@@ -10,6 +11,7 @@ import yangfentuozi.batteryrecorder.shared.util.LoggerX
  *
  * 它既是 Server 领域模型，也是当前 AIDL / ContentProvider 的 IPC 边界对象。
  */
+@Serializable
 @Parcelize
 data class ServerSettings(
     /** 是否展示实时功耗通知。 */

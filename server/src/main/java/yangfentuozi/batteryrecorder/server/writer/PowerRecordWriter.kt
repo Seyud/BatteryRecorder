@@ -1,6 +1,7 @@
 package yangfentuozi.batteryrecorder.server.writer
 
 import android.os.Handler
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus.Charging
 import yangfentuozi.batteryrecorder.shared.data.BatteryStatus.Discharging
@@ -74,6 +75,12 @@ class PowerRecordWriter(
         makeSureExists(powerDir)
         makeSureExists(chargeDir)
         makeSureExists(dischargeDir)
+    }
+
+    fun syncSettings(settings: ServerSettings) {
+        flushIntervalMs = settings.writeLatencyMs
+        batchSize = settings.batchSize
+        maxSegmentDurationMs = settings.segmentDurationMin * 60 * 1000L
     }
 
     fun write(record: LineRecord): WriteResult {

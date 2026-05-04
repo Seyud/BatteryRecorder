@@ -1,6 +1,10 @@
 package yangfentuozi.batteryrecorder.server.notification.server.stream
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.decodeFromByteArray
+import kotlinx.serialization.protobuf.ProtoBuf
 import yangfentuozi.batteryrecorder.server.notification.NotificationInfo
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import java.io.Closeable
 import java.io.DataInputStream
 import java.io.EOFException
@@ -18,6 +22,7 @@ class StreamReader(
      * @return 成功时返回一条通知流消息；如果还没开始读新帧就到 EOF，则返回 `null`。
      * @throws IOException 当帧读到一半 EOF、数据损坏或协议错误时抛出。
      */
+    @OptIn(ExperimentalSerializationApi::class)
     fun readNext(): NotificationStreamMessage? {
         // 标志位
         val magic = try {
@@ -40,8 +45,13 @@ class StreamReader(
                     return NotificationStreamMessage.Data(NotificationInfo.readFromDis(dis = input))
                 StreamProtocol.FLAG_STOP -> return NotificationStreamMessage.Stop
                 StreamProtocol.FLAG_CANCEL -> return NotificationStreamMessage.CancelNotification
-                StreamProtocol.FLAG_SET_COMPATIBILITY_MODE ->
-                    return NotificationStreamMessage.SetCompatibilityMode(input.readBoolean())
+                StreamProtocol.FLAG_SETTINGS -> {
+                    val size = input.readInt()
+                    val bytes = ByteArray(size)
+                    input.read(bytes)
+                    val settings = ProtoBuf.decodeFromByteArray<ServerSettings>(bytes)
+                    return NotificationStreamMessage.Settings(settings)
+                }
                 else -> throw IOException("无效 flag: $flag")
             }
         } catch (e: EOFException) {

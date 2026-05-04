@@ -50,6 +50,7 @@ android {
 
 dependencies {
 
+    implementation(libs.kotlinx.serialization.protobuf)
     implementation(libs.androidx.annotation)
     implementation(project(":shared"))
 

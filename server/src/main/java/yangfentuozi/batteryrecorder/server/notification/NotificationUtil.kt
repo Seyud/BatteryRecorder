@@ -1,14 +1,9 @@
 package yangfentuozi.batteryrecorder.server.notification
 
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
+
 interface NotificationUtil {
-    /**
-     * 更新通知兼容模式。
-     *
-     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
-     * @return 无。
-     */
-    fun setCompatibilityModeEnabled(enabled: Boolean)
-    fun setIconCompatibilityModeEnabled(enabled: Boolean)
+    fun syncSettings(settings: ServerSettings)
 
     fun updateNotification(info: NotificationInfo)
     fun cancelNotification()

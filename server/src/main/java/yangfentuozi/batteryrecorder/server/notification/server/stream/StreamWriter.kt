@@ -1,13 +1,17 @@
 package yangfentuozi.batteryrecorder.server.notification.server.stream
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.encodeToByteArray
+import kotlinx.serialization.protobuf.ProtoBuf
 import yangfentuozi.batteryrecorder.server.notification.NotificationInfo
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 import java.io.Closeable
 import java.io.DataOutputStream
 import java.io.OutputStream
 
 class StreamWriter(
     outputStream: OutputStream
-): Closeable {
+) : Closeable {
     private val out = DataOutputStream(outputStream)
 
     fun write(record: NotificationInfo) {
@@ -36,23 +40,17 @@ class StreamWriter(
         out.writeInt(StreamProtocol.FLAG_CANCEL)
     }
 
-    /**
-     * 下发通知兼容模式配置。
-     *
-     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
-     * @return 无。
-     */
-    fun writeCompatibilityModeEnabled(enabled: Boolean) {
+    @OptIn(ExperimentalSerializationApi::class)
+    fun writeSettings(settings: ServerSettings) {
+        // 标志位
         out.writeInt(StreamProtocol.MAGIC)
-        out.writeInt(StreamProtocol.FLAG_SET_COMPATIBILITY_MODE)
-        out.writeBoolean(enabled)
-        out.flush()
-    }
+        // flag
+        out.writeInt(StreamProtocol.FLAG_SETTINGS)
 
-    fun writeIconCompatibilityModeEnabled(enabled: Boolean) {
-        out.writeInt(StreamProtocol.MAGIC)
-        out.writeInt(StreamProtocol.FLAG_SET_ICON_COMPATIBILITY_MODE)
-        out.writeBoolean(enabled)
+        val bytes = ProtoBuf.encodeToByteArray(settings)
+        out.writeInt(bytes.size)
+        out.write(bytes)
+
         out.flush()
     }
 

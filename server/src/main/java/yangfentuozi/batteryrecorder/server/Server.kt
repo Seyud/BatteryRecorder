@@ -15,7 +15,6 @@ import android.system.OsConstants
 import yangfentuozi.batteryrecorder.server.notification.server.ChildServerBridge
 import yangfentuozi.batteryrecorder.server.recorder.IRecordListener
 import yangfentuozi.batteryrecorder.server.recorder.Monitor
-import yangfentuozi.batteryrecorder.server.recorder.Monitor.Companion.computeNotificationPowerMultiplier
 import yangfentuozi.batteryrecorder.server.sampler.DumpsysSampler
 import yangfentuozi.batteryrecorder.server.sampler.SysfsSampler
 import yangfentuozi.batteryrecorder.server.stream.StreamReader
@@ -104,37 +103,22 @@ class Server internal constructor() : IService.Stub() {
      * @param source 本次配置应用来源，仅用于日志定位。
      * @return 无。
      */
-    private fun applyConfigInternal(settings: ServerSettings, source: String) {
-        LoggerX.d(
-            TAG,
-            "$source: 应用配置, notification=${settings.notificationEnabled} compatMode=${settings.notificationCompatModeEnabled} dualCell=${settings.dualCellEnabled} calibration=${settings.calibrationValue} intervalMs=${settings.recordIntervalMs} writeLatencyMs=${settings.writeLatencyMs} batchSize=${settings.batchSize} screenOffRecord=${settings.screenOffRecordEnabled} preciseScreenOffRecord=${settings.preciseScreenOffRecordEnabled} segmentDurationMin=${settings.segmentDurationMin} logLevel=${settings.logLevel} polling=${settings.alwaysPollingScreenStatusEnabled}"
-        )
+    private fun syncSettingsInternal(settings: ServerSettings, source: String) {
+        LoggerX.d(TAG, "$source: 应用配置: $settings")
+
+        this.settings = settings
+
         LoggerX.maxHistoryDays = settings.maxHistoryDays
         LoggerX.logLevel = settings.logLevel
 
         unlockOPlusSampleTimeLimit(settings.recordIntervalMs.coerceAtLeast(200))
-
-        monitor.notificationPowerMultiplier = computeNotificationPowerMultiplier(
-            dualCellEnabled = settings.dualCellEnabled,
-            calibrationValue = settings.calibrationValue,
-        )
-        monitor.setNotificationCompatModeEnabled(settings.notificationCompatModeEnabled)
-        monitor.setNotificationIconCompatModeEnabled(settings.notificationIconCompatModeEnabled)
-        monitor.setNotificationEnabled(settings.notificationEnabled)
-        monitor.alwaysPollingScreenStatusEnabled = settings.alwaysPollingScreenStatusEnabled
-        monitor.recordIntervalMs = settings.recordIntervalMs
-        monitor.screenOffRecord = settings.screenOffRecordEnabled
-        monitor.preciseScreenOffRecordEnabled = settings.preciseScreenOffRecordEnabled
-        monitor.notifyLock()
-
-        writer.flushIntervalMs = settings.writeLatencyMs
-        writer.batchSize = settings.batchSize
-        writer.maxSegmentDurationMs = settings.segmentDurationMin * 60 * 1000L
+        monitor.syncSettings(settings)
+        writer.syncSettings(settings)
     }
 
-    override fun updateConfig(settings: ServerSettings) {
+    override fun syncSettings(settings: ServerSettings) {
         Handlers.common.post {
-            applyConfigInternal(settings, "updateConfig")
+            syncSettingsInternal(settings, "updateConfig")
         }
     }
 
@@ -377,6 +361,8 @@ class Server internal constructor() : IService.Stub() {
 
     private val appReinstalled = AtomicBoolean(false)
 
+    private var settings: ServerSettings = ServerSettings()
+
     init {
         LoggerX.i(TAG, "init: Server 初始化开始, uid=${Os.getuid()}")
         if (Looper.getMainLooper() == null) {
@@ -473,7 +459,14 @@ class Server internal constructor() : IService.Stub() {
         }
 
         if (Os.getuid() == 0) {
-            bridge = ChildServerBridge(appInfo.sourceDir)
+            bridge = ChildServerBridge(appInfo.sourceDir) { // onFail
+                LoggerX.w(TAG, "@onFail: Bridge 初始化失败")
+                bridge = null
+                monitor.bridge = null
+            }
+            bridge!!.onWriterConnected = {
+                it.writeSettings(settings)
+            }
         }
 
         try {
@@ -506,7 +499,7 @@ class Server internal constructor() : IService.Stub() {
             LoggerX.i(TAG, "init: 通过 ConfigProvider 读取配置")
             ConfigUtil.getServerSettingsByContentProvider()
         }
-        serverSettings?.let { applyConfigInternal(it, "init") }
+        serverSettings?.let { syncSettingsInternal(it, "init") }
             ?: LoggerX.w(TAG, "init: 未读取到配置, 使用当前默认值")
 
         monitor.start()

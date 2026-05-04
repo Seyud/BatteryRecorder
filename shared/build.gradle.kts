@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     id("kotlin-parcelize")
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21"
 }
 
 android {
@@ -39,6 +40,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.kotlinx.serialization.protobuf)
     implementation(project(":hiddenapi:compat"))
     compileOnly(project(":hiddenapi:stub"))
 }

@@ -1,60 +1,32 @@
 package yangfentuozi.batteryrecorder.server.notification
 
 import yangfentuozi.batteryrecorder.server.notification.server.ChildServerBridge
-import yangfentuozi.batteryrecorder.shared.config.SettingsConstants
+import yangfentuozi.batteryrecorder.shared.config.dataclass.ServerSettings
 
-class RemoteNotificationUtil(
-    private val bridge: ChildServerBridge,
-    private var compatibilityModeEnabled: Boolean = SettingsConstants.notificationCompatModeEnabled.def,
-    private var iconCompatibilityModeEnabled: Boolean = SettingsConstants.notificationIconCompatModeEnabled.def
-) : NotificationUtil {
-
+class RemoteNotificationUtil(private val bridge: ChildServerBridge) : NotificationUtil {
     private val lock = Any()
 
-    init {
-        bridge.onWriterConnected = { writer ->
-            synchronized(lock) {
-                writer.writeCompatibilityModeEnabled(compatibilityModeEnabled)
-            }
-        }
-        bridge.writer?.let { writer ->
-            synchronized(lock) {
-                writer.writeCompatibilityModeEnabled(compatibilityModeEnabled)
-            }
-        }
-    }
-
-    /**
-     * 更新通知子进程的兼容模式配置。
-     *
-     * @param enabled `true` 表示每次更新通知都新建 Builder；`false` 表示继续复用 Builder。
-     * @return 无。
-     */
-    override fun setCompatibilityModeEnabled(enabled: Boolean) {
+    override fun syncSettings(settings: ServerSettings) {
         synchronized(lock) {
-            if (compatibilityModeEnabled == enabled) return
-            compatibilityModeEnabled = enabled
-            bridge.writer?.writeCompatibilityModeEnabled(enabled)
-        }
-    }
-
-    override fun setIconCompatibilityModeEnabled(enabled: Boolean) {
-        synchronized(lock) {
-            if (iconCompatibilityModeEnabled == enabled) return
-            iconCompatibilityModeEnabled = enabled
-            bridge.writer?.writeIconCompatibilityModeEnabled(enabled)
+            runCatching {
+                bridge.writer?.writeSettings(settings)
+            }
         }
     }
 
     override fun updateNotification(info: NotificationInfo) {
         synchronized(lock) {
-            bridge.writer?.write(info)
+            runCatching {
+                bridge.writer?.write(info)
+            }
         }
     }
 
     override fun cancelNotification() {
         synchronized(lock) {
-            bridge.writer?.writeCancel()
+            runCatching {
+                bridge.writer?.writeCancel()
+            }
         }
     }
 }

@@ -519,7 +519,7 @@ internal object UpdateServerSettingsUseCase {
         SharedSettings.writeServerSettings(prefs, updatedSettings)
         applyLoggerSettings(updatedSettings)
         LoggerX.i("SettingsViewModel", message)
-        Service.service?.updateConfig(updatedSettings)
+        Service.service?.syncSettings(updatedSettings)
         return updatedSettings
     }
 

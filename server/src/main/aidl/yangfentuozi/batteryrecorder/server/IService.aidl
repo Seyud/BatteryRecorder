@@ -14,7 +14,7 @@ interface IService {
     void registerRecordListener(IRecordListener listener) = 100;
     void unregisterRecordListener(IRecordListener listener) = 101;
 
-    void updateConfig(in ServerSettings config) = 200;
+    void syncSettings(in ServerSettings config) = 200;
 
     ParcelFileDescriptor sync() = 300;
 

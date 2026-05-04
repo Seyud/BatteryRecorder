@@ -8,10 +8,12 @@ import yangfentuozi.batteryrecorder.shared.util.Handlers
 import yangfentuozi.batteryrecorder.shared.util.LoggerX
 import java.io.IOException
 
+private const val TAG = "Bridge"
+
 class ChildServerBridge(
-    private val apkPath: String
+    private val apkPath: String,
+    private val onFail: () -> Unit = {},
 ) {
-    private val tag = "Bridge"
 
     private var retryCount = 0
     private val retryMaxTimes = 5
@@ -29,7 +31,7 @@ class ChildServerBridge(
                     for (index in 1..10) {
                         if (!process.isAlive) {
                             LoggerX.w(
-                                tag,
+                                TAG,
                                 "NotificationServer 在建连前已退出, exitValue=${runCatching { process.exitValue() }.getOrNull()}",
                             )
                             break
@@ -41,7 +43,7 @@ class ChildServerBridge(
                             writer = StreamWriter(socket.outputStream)
                             onWriterConnected?.invoke(writer!!)
                             LoggerX.i(
-                                tag,
+                                TAG,
                                 "connectSocket: 已连接 NotificationServer, attempt=${index + 1}"
                             )
                             break
@@ -74,7 +76,7 @@ class ChildServerBridge(
 
     fun startNotificationServer() {
         if (isStopped) return
-        if (retryCount > retryMaxTimes) throw RuntimeException("NotificationServer 多次启动失败")
+        if (retryCount > retryMaxTimes) onFail()
         process = ProcessBuilder(
             "app_process",
             "-Djava.class.path=$apkPath",
