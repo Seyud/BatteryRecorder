@@ -39,6 +39,7 @@
 - ~~[ ] 亮屏判断改为以屏幕亮度为准~~
 - [x] 日志导出
 - [x] 优化 needDeleteSegment 判断
+- [x] app 服务
 
 ### ext
 
